@@ -1,5 +1,4 @@
 import { Link, useLocation } from 'react-router-dom'
-import { useAuth } from '../context/AuthContext'
 
 const tabs = [
   {
@@ -46,11 +45,7 @@ const tabs = [
 ]
 
 export default function NavBar() {
-  const { pathname }      = useLocation()
-  const { isAuthenticated } = useAuth()
-
-  // Hide NavBar on the auth screen and when not signed in
-  if (!isAuthenticated || pathname === '/auth') return null
+  const { pathname } = useLocation()
 
   return (
     <nav className="fixed bottom-0 left-0 right-0 max-w-md mx-auto

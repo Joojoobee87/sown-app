@@ -32,14 +32,11 @@ if (!supabaseUrl || !supabaseKey || supabaseUrl === '' || supabaseKey === '') {
   console.log('Supabase environment variables found. Creating real client.')
   console.log('URL found:', supabaseUrl ? 'YES' : 'NO')
   console.log('Key found:', supabaseKey ? 'YES' : 'NO')
-  try {
-    supabaseClient = createClient(supabaseUrl, supabaseKey)
-    console.log('Supabase client created successfully.')
-  } catch (error) {
-    console.error('Error creating Supabase client:', error)
-    console.warn('Falling back to mock client due to initialization error.')
-    
-    // Fallback to mock client
+  
+  // Validate URL format
+  if (!supabaseUrl.startsWith('https://') || !supabaseUrl.includes('.supabase.co')) {
+    console.error('Invalid Supabase URL format:', supabaseUrl)
+    console.warn('Falling back to mock client due to invalid URL.')
     supabaseClient = {
       from: () => ({
         select: () => ({
@@ -53,6 +50,31 @@ if (!supabaseUrl || !supabaseKey || supabaseUrl === '' || supabaseKey === '') {
         getUser: () => ({ data: { user: null }, error: null }),
         signInWithPassword: () => ({ data: { user: null }, error: null }),
         signOut: () => ({ error: null })
+      }
+    }
+  } else {
+    try {
+      supabaseClient = createClient(supabaseUrl, supabaseKey)
+      console.log('Supabase client created successfully.')
+    } catch (error) {
+      console.error('Error creating Supabase client:', error)
+      console.warn('Falling back to mock client due to initialization error.')
+    
+      // Fallback to mock client
+      supabaseClient = {
+        from: () => ({
+          select: () => ({
+            eq: () => ({
+              data: [],
+              error: null
+            })
+          })
+        }),
+        auth: {
+          getUser: () => ({ data: { user: null }, error: null }),
+          signInWithPassword: () => ({ data: { user: null }, error: null }),
+          signOut: () => ({ error: null })
+        }
       }
     }
   }
