@@ -16,14 +16,10 @@ export default function NavBar() {
         const active = pathname === path
         return (
           <Link key={path} to={path} className="flex flex-col items-center gap-1 px-3 py-1">
-            <div className={`w-8 h-8 rounded-full flex items-center justify-center transition-colors ${
-              active ? 'bg-fern' : 'bg-leaf'
-            }`}>
+            <div className={`w-8 h-8 rounded-full flex items-center justify-center transition-colors ${active ? 'bg-fern' : 'bg-leaf'}`}>
               <Icon active={active} />
             </div>
-            <span className={`text-[10px] tracking-wide ${
-              active ? 'text-fern font-medium' : 'text-subtle'
-            }`}>
+            <span className={`text-[10px] tracking-wide ${active ? 'text-fern font-medium' : 'text-subtle'}`}>
               {label}
             </span>
           </Link>
@@ -34,11 +30,7 @@ export default function NavBar() {
 }
 
 // Simple SVG icons — replace with a proper icon library later
-interface IconProps {
-  active: boolean
-}
-
-function HomeIcon({ active }: IconProps) {
+function HomeIcon({ active }) {
   return (
     <svg width="16" height="16" fill="none" viewBox="0 0 24 24" stroke={active ? '#D4DCCA' : '#8A7E6E'} strokeWidth="2">
       <path d="M3 12L12 3l9 9M5 10v9a1 1 0 001 1h4v-4h4v4h4a1 1 0 001-1v-9"/>
@@ -46,7 +38,7 @@ function HomeIcon({ active }: IconProps) {
   )
 }
 
-function ScanIcon({ active }: IconProps) {
+function ScanIcon({ active }) {
   return (
     <svg width="16" height="16" fill="none" viewBox="0 0 24 24" stroke={active ? '#D4DCCA' : '#8A7E6E'} strokeWidth="2">
       <path d="M4 8V6a2 2 0 012-2h2M4 16v2a2 2 0 002 2h2m8-16h2a2 2 0 012 2v2m0 8v2a2 2 0 01-2 2h-2M9 12h6"/>
@@ -54,7 +46,7 @@ function ScanIcon({ active }: IconProps) {
   )
 }
 
-function LibraryIcon({ active }: IconProps) {
+function LibraryIcon({ active }) {
   return (
     <svg width="16" height="16" fill="none" viewBox="0 0 24 24" stroke={active ? '#D4DCCA' : '#8A7E6E'} strokeWidth="2">
       <path d="M12 6.5a5.5 5.5 0 110 11 5.5 5.5 0 010-11zM12 2v2m0 16v2M4.22 4.22l1.42 1.42m12.72 12.72l1.42 1.42M2 12h2m16 0h2"/>
@@ -62,7 +54,7 @@ function LibraryIcon({ active }: IconProps) {
   )
 }
 
-function CalIcon({ active }: IconProps) {
+function CalIcon({ active }) {
   return (
     <svg width="16" height="16" fill="none" viewBox="0 0 24 24" stroke={active ? '#D4DCCA' : '#8A7E6E'} strokeWidth="2">
       <rect x="3" y="4" width="18" height="18" rx="2"/>

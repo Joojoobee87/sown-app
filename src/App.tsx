@@ -8,7 +8,7 @@ import NavBar from './components/NavBar'
 export default function App() {
   return (
     <BrowserRouter>
-      <div className="max-w-md mx-auto min-h-screen flex flex-col">
+      <div className="max-w-md mx-auto min-h-screen relative bg-parchment">
         <Routes>
           <Route path="/" element={<Home />} />
           <Route path="/scan" element={<Scan />} />
