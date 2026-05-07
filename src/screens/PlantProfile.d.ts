@@ -23,3 +23,10 @@ export interface PlantProfileState {
   plant?: Plant
   probability?: number
 }
+
+// Component type declaration for JSX import
+declare module './PlantProfile' {
+  import { ComponentType } from 'react'
+  const PlantProfile: ComponentType<any>
+  export default PlantProfile
+}
