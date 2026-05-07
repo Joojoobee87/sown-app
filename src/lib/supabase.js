@@ -1,4 +1,37 @@
-// Simple mock Supabase client for now - bypassing real client initialization issues
+import { createClient } from '@supabase/supabase-js'
+
+// Get environment variables
+const supabaseUrl = import.meta.env.VITE_SUPABASE_URL
+const supabaseKey = import.meta.env.VITE_SUPABASE_ANON_KEY
+
+let supabaseClient
+
+// Create Supabase client with proper error handling
+if (supabaseUrl && supabaseKey) {
+  try {
+    console.log('Creating real Supabase client...')
+    console.log('URL found:', !!supabaseUrl)
+    console.log('Key found:', !!supabaseKey)
+    
+    supabaseClient = createClient(supabaseUrl, supabaseKey, {
+      auth: {
+        persistSession: true,
+        autoRefreshToken: true
+      }
+    })
+    console.log('Real Supabase client created successfully - emails will work!')
+  } catch (error) {
+    console.error('Failed to create Supabase client:', error)
+    console.warn('Falling back to mock client - emails will not work')
+    supabaseClient = createMockClient()
+  }
+} else {
+  console.warn('Missing Supabase environment variables, using mock client')
+  console.log('VITE_SUPABASE_URL:', supabaseUrl)
+  console.log('VITE_SUPABASE_ANON_KEY:', supabaseKey ? '***' : 'MISSING')
+  supabaseClient = createMockClient()
+}
+
 function createMockClient() {
   return {
     from: () => ({
@@ -13,7 +46,6 @@ function createMockClient() {
       getSession: async () => ({ data: { session: null }, error: null }),
       getUser: async () => ({ data: { user: null }, error: null }),
       signInWithPassword: async ({ email, password }) => {
-        // Mock successful sign in for testing
         console.log('Mock sign in:', email)
         return { 
           data: { 
@@ -27,7 +59,6 @@ function createMockClient() {
         }
       },
       signUp: async ({ email, password, options }) => {
-        // Mock successful sign up for testing
         console.log('Mock sign up:', email)
         return { 
           data: { 
@@ -41,23 +72,19 @@ function createMockClient() {
         }
       },
       signInWithOtp: async ({ email }) => {
-        // Mock magic link sent
         console.log('Mock magic link sent to:', email)
         return { error: null }
       },
       resetPasswordForEmail: async (email, options) => {
-        // Mock password reset sent
         console.log('Mock password reset sent to:', email)
         return { error: null }
       },
       setSession: async ({ access_token, refresh_token }) => {
-        // Mock session set
         console.log('Mock session set with tokens')
         return { error: null }
       },
       signOut: async () => ({ error: null }),
       onAuthStateChange: (callback) => {
-        // Mock auth state change listener
         const { data: { subscription } } = {
           data: {
             subscription: {
@@ -71,4 +98,4 @@ function createMockClient() {
   }
 }
 
-export const supabase = createMockClient()
+export const supabase = supabaseClient
