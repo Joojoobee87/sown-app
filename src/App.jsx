@@ -1,5 +1,7 @@
-// src/App.jsx — Working authentication with real Auth component
+// src/App.jsx — Working authentication with real Supabase integration
 import { BrowserRouter, Routes, Route } from 'react-router-dom'
+import { AuthProvider } from './context/AuthContext'
+import ProtectedRoute from './components/ProtectedRoute'
 import Auth from './screens/Auth'
 import Home from './screens/Home'
 import Scan from './screens/Scan'
@@ -11,21 +13,32 @@ import NavBar from './components/NavBar'
 export default function App() {
   return (
     <BrowserRouter>
-      <div className="max-w-md mx-auto min-h-screen relative bg-parchment">
-        <Routes>
-          {/* Auth route */}
-          <Route path="/auth" element={<Auth />} />
-          
-          {/* Default route - show auth screen */}
-          <Route path="/" element={<Auth />} />
-          
-          {/* Protected routes - show auth screen for now */}
-          <Route path="/scan" element={<Auth />} />
-          <Route path="/library" element={<Auth />} />
-          <Route path="/calendar" element={<Auth />} />
-          <Route path="/plant/:id" element={<Auth />} />
-        </Routes>
-      </div>
+      <AuthProvider>
+        <div className="max-w-md mx-auto min-h-screen relative bg-parchment">
+          <Routes>
+            {/* Public auth route */}
+            <Route path="/auth" element={<Auth />} />
+            
+            {/* Protected routes */}
+            <Route path="/" element={
+              <ProtectedRoute><Home /></ProtectedRoute>
+            }/>
+            <Route path="/scan" element={
+              <ProtectedRoute><Scan /></ProtectedRoute>
+            }/>
+            <Route path="/library" element={
+              <ProtectedRoute><Library /></ProtectedRoute>
+            }/>
+            <Route path="/calendar" element={
+              <ProtectedRoute><Calendar /></ProtectedRoute>
+            }/>
+            <Route path="/plant/:id" element={
+              <ProtectedRoute><PlantProfile /></ProtectedRoute>
+            }/>
+          </Routes>
+          <NavBar />
+        </div>
+      </AuthProvider>
     </BrowserRouter>
   )
 }

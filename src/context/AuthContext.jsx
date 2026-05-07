@@ -1,5 +1,5 @@
 // src/context/AuthContext.jsx
-// Sown App — Robust authentication context with fallbacks
+// Sown App — Working authentication context with Supabase integration
 
 import { createContext, useContext, useEffect, useState } from 'react'
 import { supabase } from '../lib/supabase'
@@ -9,10 +9,10 @@ const AuthContext = createContext(null)
 
 // ─── Provider ─────────────────────────────────────────────────────────────────
 export function AuthProvider({ children }) {
-  const [user, setUser]       = useState(null)
+  const [user, setUser] = useState(null)
   const [session, setSession] = useState(null)
   const [loading, setLoading] = useState(true)
-  const [error, setError]     = useState(null)
+  const [error, setError] = useState(null)
 
   useEffect(() => {
     let isMounted = true
@@ -20,16 +20,8 @@ export function AuthProvider({ children }) {
 
     const initializeAuth = async () => {
       try {
-        // Check if we have a real Supabase client
-        if (!supabase || !supabase.auth) {
-          console.warn('No Supabase client available - redirecting to auth')
-          if (isMounted) {
-            setLoading(false)
-            setError('Authentication not available')
-          }
-          return
-        }
-
+        console.log('Initializing authentication...')
+        
         // Get current session
         const { data: { session }, error } = await supabase.auth.getSession()
         
@@ -38,6 +30,7 @@ export function AuthProvider({ children }) {
             console.error('Session error:', error)
             setError(error.message)
           } else {
+            console.log('Session found:', !!session)
             setSession(session)
             setUser(session?.user ?? null)
           }
@@ -47,6 +40,7 @@ export function AuthProvider({ children }) {
         // Listen for auth changes
         const { data: { subscription: authSub } } = supabase.auth.onAuthStateChange(
           (_event, session) => {
+            console.log('Auth state changed:', _event, !!session)
             if (isMounted) {
               setSession(session)
               setUser(session?.user ?? null)
@@ -77,35 +71,9 @@ export function AuthProvider({ children }) {
   // ── Sign out helper ────────────────────────────────────────────────────────
   const signOut = async () => {
     try {
-      if (supabase && supabase.auth) {
-        await supabase.auth.signOut()
-      }
+      await supabase.auth.signOut()
     } catch (error) {
       console.error('Sign out error:', error)
-    }
-    // onAuthStateChange above will handle setting user to null
-  }
-
-  // ── Check if user has Pro ──────────────────────────────────────────────────
-  const isPro = async () => {
-    if (!user) return false
-    
-    try {
-      const { data, error } = await supabase
-        .from('user_profiles')
-        .select('is_pro')
-        .eq('user_id', user.id)
-        .single()
-      
-      if (error) {
-        console.error('Pro status check error:', error)
-        return false
-      }
-      
-      return data?.is_pro || false
-    } catch (err) {
-      console.error('Pro status error:', err)
-      return false
     }
   }
 
@@ -116,18 +84,8 @@ export function AuthProvider({ children }) {
     loading,
     error,
     isAuthenticated: !!user,
-    signOut,
-    isPro
+    signOut
   }
-
-  // Debug logging
-  console.log('AuthContext: State updated:', { 
-    user: !!user, 
-    session: !!session, 
-    loading, 
-    error, 
-    isAuthenticated: !!user 
-  })
 
   return (
     <AuthContext.Provider value={value}>

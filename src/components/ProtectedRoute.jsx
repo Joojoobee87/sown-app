@@ -46,38 +46,24 @@ function SownLoader() {
 
 // ─── Protected Route ──────────────────────────────────────────────────────────
 export default function ProtectedRoute({ children }) {
-  console.log('ProtectedRoute: Starting authentication check')
-  
-  try {
-    const { isAuthenticated, loading, error } = useAuth()
-    
-    console.log('ProtectedRoute: Auth state:', { isAuthenticated, loading, error })
+  const { isAuthenticated, loading, error } = useAuth()
 
-    // Show loader while checking auth
-    if (loading) {
-      console.log('ProtectedRoute: Still loading, showing loader')
-      return <SownLoader />
-    }
+  // Show loader while checking auth
+  if (loading) {
+    return <SownLoader />
+  }
 
-    // If there's an auth error, still try to redirect to auth
-    if (error) {
-      console.warn('Auth error, redirecting to auth:', error)
-      return <Navigate to="/auth" replace />
-    }
-
-    // Not signed in — redirect to auth screen
-    if (!isAuthenticated) {
-      console.log('ProtectedRoute: Not authenticated, redirecting to /auth')
-      return <Navigate to="/auth" replace />
-    }
-
-    // Authenticated — render the screen
-    console.log('ProtectedRoute: Authenticated, showing children')
-    return children
-
-  } catch (err) {
-    // If useAuth hook fails, redirect to auth anyway
-    console.warn('ProtectedRoute error, redirecting to auth:', err)
+  // If there's an auth error, redirect to auth
+  if (error) {
+    console.warn('Auth error, redirecting to auth:', error)
     return <Navigate to="/auth" replace />
   }
+
+  // Not signed in — redirect to auth screen
+  if (!isAuthenticated) {
+    return <Navigate to="/auth" replace />
+  }
+
+  // Authenticated — render the screen
+  return children
 }

@@ -1,4 +1,5 @@
 import { Link, useLocation } from 'react-router-dom'
+import { useAuth } from '../context/AuthContext'
 
 const tabs = [
   {
@@ -46,6 +47,7 @@ const tabs = [
 
 export default function NavBar() {
   const { pathname } = useLocation()
+  const { user, signOut } = useAuth()
 
   // Hide on auth screen
   if (pathname === '/auth') return null
