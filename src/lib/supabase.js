@@ -30,7 +30,30 @@ if (!supabaseUrl || !supabaseKey || supabaseUrl === '' || supabaseKey === '') {
   }
 } else {
   console.log('Supabase environment variables found. Creating real client.')
-  supabaseClient = createClient(supabaseUrl, supabaseKey)
+  try {
+    supabaseClient = createClient(supabaseUrl, supabaseKey)
+    console.log('Supabase client created successfully.')
+  } catch (error) {
+    console.error('Error creating Supabase client:', error)
+    console.warn('Falling back to mock client due to initialization error.')
+    
+    // Fallback to mock client
+    supabaseClient = {
+      from: () => ({
+        select: () => ({
+          eq: () => ({
+            data: [],
+            error: null
+          })
+        })
+      }),
+      auth: {
+        getUser: () => ({ data: { user: null }, error: null }),
+        signInWithPassword: () => ({ data: { user: null }, error: null }),
+        signOut: () => ({ error: null })
+      }
+    }
+  }
 }
 
 export const supabase = supabaseClient
