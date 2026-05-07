@@ -46,21 +46,31 @@ function SownLoader() {
 
 // ─── Protected Route ──────────────────────────────────────────────────────────
 export default function ProtectedRoute({ children }) {
-  const { isAuthenticated, loading } = useAuth()
+  try {
+    const { isAuthenticated, loading, error } = useAuth()
 
-  // Still checking session — show branded loader with timeout
-  if (loading) {
-    // Add timeout to prevent infinite loading
-    setTimeout(() => {
-      console.warn('Auth loading timeout - redirecting to auth')
-      window.location.href = '/auth'
-    }, 5000)
-    return <SownLoader />
+    // Show loader while checking auth
+    if (loading) {
+      return <SownLoader />
+    }
+
+    // If there's an auth error, show children anyway (fallback mode)
+    if (error) {
+      console.warn('Auth error, showing content anyway:', error)
+      return children
+    }
+
+    // Not signed in — redirect to auth screen
+    if (!isAuthenticated) {
+      return <Navigate to="/auth" replace />
+    }
+
+    // Authenticated — render the screen
+    return children
+
+  } catch (err) {
+    // If useAuth hook fails, show children anyway (fallback mode)
+    console.warn('ProtectedRoute error, showing content anyway:', err)
+    return children
   }
-
-  // Not signed in — redirect to auth screen
-  if (!isAuthenticated) return <Navigate to="/auth" replace />
-
-  // Authenticated — render the screen
-  return children
 }

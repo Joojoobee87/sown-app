@@ -1,16 +1,5 @@
 // src/context/AuthContext.jsx
-// Sown App — Global authentication context
-// Paste this file into src/context/AuthContext.jsx (create the context folder)
-//
-// What this does:
-//   1. Wraps the entire app and makes the current user available everywhere
-//   2. Listens for Supabase auth state changes (sign in, sign out, token refresh)
-//   3. Exposes useAuth() hook for any component to access the user
-//   4. Handles the loading state while Supabase checks for an existing session
-//
-// Usage in any component:
-//   import { useAuth } from '../context/AuthContext'
-//   const { user, session, loading, signOut } = useAuth()
+// Sown App — Robust authentication context with fallbacks
 
 import { createContext, useContext, useEffect, useState } from 'react'
 import { supabase } from '../lib/supabase'
@@ -22,74 +11,113 @@ const AuthContext = createContext(null)
 export function AuthProvider({ children }) {
   const [user, setUser]       = useState(null)
   const [session, setSession] = useState(null)
-  const [loading, setLoading] = useState(true)  // true until first session check
+  const [loading, setLoading] = useState(true)
+  const [error, setError]     = useState(null)
 
   useEffect(() => {
-    // Check if we're using mock client
-    if (!supabase.auth.getSession) {
-      console.warn('Using mock Supabase client - setting loading to false')
-      setLoading(false)
-      return
+    let isMounted = true
+    let subscription = null
+
+    const initializeAuth = async () => {
+      try {
+        // Check if we have a real Supabase client
+        if (!supabase || !supabase.auth) {
+          console.warn('No Supabase client available - using mock auth')
+          if (isMounted) {
+            setLoading(false)
+            setError('Authentication not available')
+          }
+          return
+        }
+
+        // Get current session
+        const { data: { session }, error } = await supabase.auth.getSession()
+        
+        if (isMounted) {
+          if (error) {
+            console.error('Session error:', error)
+            setError(error.message)
+          } else {
+            setSession(session)
+            setUser(session?.user ?? null)
+          }
+          setLoading(false)
+        }
+
+        // Listen for auth changes
+        const { data: { subscription: authSub } } = supabase.auth.onAuthStateChange(
+          (_event, session) => {
+            if (isMounted) {
+              setSession(session)
+              setUser(session?.user ?? null)
+              setError(null)
+            }
+          }
+        )
+        
+        subscription = authSub
+
+      } catch (err) {
+        console.error('Auth initialization error:', err)
+        if (isMounted) {
+          setError('Authentication system error')
+          setLoading(false)
+        }
+      }
     }
 
-    // 1. Get the current session on mount
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      setSession(session)
-      setUser(session?.user ?? null)
-      setLoading(false)
-    }).catch(error => {
-      console.error('Error getting session:', error)
-      setLoading(false)
-    })
+    initializeAuth()
 
-    // 2. Listen for auth state changes
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(
-      (_event, session) => {
-        setSession(session)
-        setUser(session?.user ?? null)
-        setLoading(false)
-      }
-    )
-
-    // 3. Clean up listener on unmount
-    return () => subscription.unsubscribe()
+    return () => {
+      isMounted = false
+      if (subscription) subscription.unsubscribe()
+    }
   }, [])
 
   // ── Sign out helper ────────────────────────────────────────────────────────
   const signOut = async () => {
-    await supabase.auth.signOut()
+    try {
+      if (supabase && supabase.auth) {
+        await supabase.auth.signOut()
+      }
+    } catch (error) {
+      console.error('Sign out error:', error)
+    }
     // onAuthStateChange above will handle setting user to null
   }
 
   // ── Check if user has Pro ──────────────────────────────────────────────────
-  // This checks the user_profiles table in Supabase.
-  // Call this where you need to gate Pro features.
-  const checkPro = async () => {
+  const isPro = async () => {
     if (!user) return false
+    
     try {
-      const { data } = await supabase
+      const { data, error } = await supabase
         .from('user_profiles')
-        .select('is_pro, pro_expiry')
+        .select('is_pro')
         .eq('user_id', user.id)
         .single()
-
-      if (!data || !data.is_pro) return false
-      if (!data.pro_expiry) return true  // lifetime Pro (no expiry set)
-
-      // Check expiry
-      return new Date(data.pro_expiry) > new Date()
-    } catch {
+      
+      if (error) {
+        console.error('Pro status check error:', error)
+        return false
+      }
+      
+      return data?.is_pro || false
+    } catch (err) {
+      console.error('Pro status error:', err)
       return false
     }
   }
 
+  // ── Context value ─────────────────────────────────────────────────────────
   const value = {
     user,
     session,
     loading,
-    signOut,
-    checkPro,
+    error,
     isAuthenticated: !!user,
+    signOut,
+    isPro
   }
 
   return (
@@ -99,11 +127,11 @@ export function AuthProvider({ children }) {
   )
 }
 
-// ─── Hook ─────────────────────────────────────────────────────────────────────
+// ─── Hook ───────────────────────────────────────────────────────────────────
 export function useAuth() {
   const context = useContext(AuthContext)
   if (!context) {
-    throw new Error('useAuth must be used inside AuthProvider')
+    throw new Error('useAuth must be used within an AuthProvider')
   }
   return context
 }

@@ -1,4 +1,5 @@
 import { Link, useLocation } from 'react-router-dom'
+import { useAuth } from '../context/AuthContext'
 
 const tabs = [
   {
@@ -46,6 +47,19 @@ const tabs = [
 
 export default function NavBar() {
   const { pathname } = useLocation()
+  
+  // Try to get auth state, but don't crash if it fails
+  let isAuthenticated = false
+  try {
+    const auth = useAuth()
+    isAuthenticated = auth.isAuthenticated
+  } catch (error) {
+    // If useAuth fails, just show the nav anyway (fallback mode)
+    console.warn('NavBar auth error, showing anyway:', error)
+  }
+
+  // Hide on auth screen
+  if (pathname === '/auth') return null
 
   return (
     <nav className="fixed bottom-0 left-0 right-0 max-w-md mx-auto
