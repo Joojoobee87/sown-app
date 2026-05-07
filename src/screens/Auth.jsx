@@ -16,8 +16,8 @@
 //   - Session management
 //   - JWT tokens
 
-import { useState } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useState, useEffect } from 'react'
+import { useNavigate, useSearchParams } from 'react-router-dom'
 import { supabase } from '../lib/supabase'
 
 // ─── Seed S mark ─────────────────────────────────────────────────────────────
@@ -131,9 +131,10 @@ function GrowCodeField({ value, onChange, status }) {
 // ─── Main Auth screen ─────────────────────────────────────────────────────────
 export default function Auth() {
   const navigate = useNavigate()
+  const [searchParams] = useSearchParams()
 
-  // ── State ──────────────────────────────────────────────────────────────────
-  const [mode, setMode]           = useState('signin')  // 'signin' | 'signup' | 'magic' | 'reset'
+  // ── State ──────────────────────────────────────────────────────────
+  const [mode, setMode]           = useState('signin')  // 'signin' | 'signup' | 'magic' | 'reset' | 'verify'
   const [email, setEmail]         = useState('')
   const [password, setPassword]   = useState('')
   const [name, setName]           = useState('')
@@ -141,6 +142,41 @@ export default function Auth() {
   const [codeStatus, setCodeStatus] = useState(null)  // null | 'valid' | 'invalid'
   const [loading, setLoading]     = useState(false)
   const [banner, setBanner]       = useState(null)    // { type, message }
+  const [verifying, setVerifying] = useState(false)
+
+  // ── Handle email verification from URL ───────────────────────────────────
+  useEffect(() => {
+    const verifyToken = async () => {
+      const accessToken = searchParams.get('access_token')
+      const refreshToken = searchParams.get('refresh_token')
+      
+      if (accessToken && refreshToken) {
+        setMode('verify')
+        setVerifying(true)
+        try {
+          const { error } = await supabase.auth.setSession({
+            access_token: accessToken,
+            refresh_token: refreshToken
+          })
+          
+          if (error) {
+            setBanner({ type: 'error', message: 'Email verification failed. Please try again.' })
+            navigate('/auth')
+          } else {
+            setBanner({ type: 'success', message: 'Email verified! You can now sign in.' })
+            setTimeout(() => navigate('/'), 2000)
+          }
+        } catch (err) {
+          setBanner({ type: 'error', message: 'Email verification failed. Please try again.' })
+          navigate('/auth')
+        } finally {
+          setVerifying(false)
+        }
+      }
+    }
+
+    verifyToken()
+  }, [searchParams, navigate])
 
   const showBanner = (type, message) => setBanner({ type, message })
   const clearBanner = () => setBanner(null)
@@ -366,6 +402,28 @@ export default function Auth() {
         {banner && (
           <div className="mb-4">
             <Banner type={banner.type} message={banner.message} />
+          </div>
+        )}
+
+        {/* ── Email verification ─────────────────────────────────────────── */}
+        {mode === 'verify' && (
+          <div className="flex flex-col gap-4">
+            <div className="bg-leaf rounded-xl px-4 py-3">
+              <p className="text-sm text-fern leading-relaxed">
+                {verifying ? 'Verifying your email address...' : 'Email verified! You can now sign in.'}
+              </p>
+            </div>
+            
+            {!verifying && (
+              <button
+                onClick={() => setMode('signin')}
+                className="w-full bg-fern text-sage font-medium py-4
+                           rounded-xl tracking-wide text-sm mt-4
+                           active:bg-moss/30 transition-colors"
+              >
+                Continue to sign in
+              </button>
+            )}
           </div>
         )}
 
