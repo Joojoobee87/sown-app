@@ -120,6 +120,15 @@ export function AuthProvider({ children }) {
     isPro
   }
 
+  // Debug logging
+  console.log('AuthContext: State updated:', { 
+    user: !!user, 
+    session: !!session, 
+    loading, 
+    error, 
+    isAuthenticated: !!user 
+  })
+
   return (
     <AuthContext.Provider value={value}>
       {children}

@@ -11,29 +11,51 @@ import PlantProfile from './screens/PlantProfile'
 import NavBar from './components/NavBar'
 
 export default function App() {
+  console.log('App: Rendering with authentication')
+  
   return (
     <AuthProvider>
       <BrowserRouter>
         <div className="max-w-md mx-auto min-h-screen relative bg-parchment">
           <Routes>
             {/* Public routes */}
-            <Route path="/auth" element={<Auth />} />
+            <Route path="/auth" element={
+              <>
+                {console.log('App: Rendering Auth route')}
+                <Auth />
+              </>
+            } />
             
             {/* Protected routes with fallback logic */}
             <Route path="/" element={
-              <ProtectedRoute><Home /></ProtectedRoute>
+              <>
+                {console.log('App: Rendering protected Home route')}
+                <ProtectedRoute><Home /></ProtectedRoute>
+              </>
             }/>
             <Route path="/scan" element={
-              <ProtectedRoute><Scan /></ProtectedRoute>
+              <>
+                {console.log('App: Rendering protected Scan route')}
+                <ProtectedRoute><Scan /></ProtectedRoute>
+              </>
             }/>
             <Route path="/library" element={
-              <ProtectedRoute><Library /></ProtectedRoute>
+              <>
+                {console.log('App: Rendering protected Library route')}
+                <ProtectedRoute><Library /></ProtectedRoute>
+              </>
             }/>
             <Route path="/calendar" element={
-              <ProtectedRoute><Calendar /></ProtectedRoute>
+              <>
+                {console.log('App: Rendering protected Calendar route')}
+                <ProtectedRoute><Calendar /></ProtectedRoute>
+              </>
             }/>
             <Route path="/plant/:id" element={
-              <ProtectedRoute><PlantProfile /></ProtectedRoute>
+              <>
+                {console.log('App: Rendering protected PlantProfile route')}
+                <ProtectedRoute><PlantProfile /></ProtectedRoute>
+              </>
             }/>
           </Routes>
           <NavBar />
