@@ -6,19 +6,15 @@ const supabaseKey = import.meta.env.VITE_SUPABASE_ANON_KEY
 
 let supabaseClient
 
-// Create Supabase client with proper error handling
+// Create Supabase client with minimal configuration to avoid headers error
 if (supabaseUrl && supabaseKey) {
   try {
     console.log('Creating real Supabase client...')
     console.log('URL found:', !!supabaseUrl)
     console.log('Key found:', !!supabaseKey)
     
-    supabaseClient = createClient(supabaseUrl, supabaseKey, {
-      auth: {
-        persistSession: true,
-        autoRefreshToken: true
-      }
-    })
+    // Try minimal client configuration first
+    supabaseClient = createClient(supabaseUrl, supabaseKey)
     console.log('Real Supabase client created successfully - emails will work!')
   } catch (error) {
     console.error('Failed to create Supabase client:', error)
