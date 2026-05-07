@@ -24,6 +24,15 @@ export default {
         xl: '12px',
         '2xl': '16px',
       },
+      animation: {
+        'scan-line': 'scanLine 2s ease-in-out infinite',
+      },
+      keyframes: {
+        scanLine: {
+          '0%, 100%': { top: '8px', opacity: '0.6' },
+          '50%':      { top: 'calc(100% - 8px)', opacity: '1' },
+        },
+      },
     },
   },
   plugins: [],
