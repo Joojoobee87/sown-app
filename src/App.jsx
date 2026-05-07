@@ -14,8 +14,8 @@ export default function App() {
   console.log('App: Rendering with authentication')
   
   return (
-    <AuthProvider>
-      <BrowserRouter>
+    <BrowserRouter>
+      <AuthProvider>
         <div className="max-w-md mx-auto min-h-screen relative bg-parchment">
           <Routes>
             {/* Public routes */}
@@ -60,7 +60,7 @@ export default function App() {
           </Routes>
           <NavBar />
         </div>
-      </BrowserRouter>
-    </AuthProvider>
+      </AuthProvider>
+    </BrowserRouter>
   )
 }

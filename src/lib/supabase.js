@@ -32,6 +32,8 @@ if (!supabaseUrl || !supabaseKey || supabaseUrl === '' || supabaseKey === '') {
   console.log('Supabase environment variables found. Creating real client.')
   console.log('URL found:', supabaseUrl ? 'YES' : 'NO')
   console.log('Key found:', supabaseKey ? 'YES' : 'NO')
+  console.log('URL value:', supabaseUrl)
+  console.log('Key length:', supabaseKey.length)
   
   // Validate URL format
   if (!supabaseUrl.startsWith('https://') || !supabaseUrl.includes('.supabase.co')) {
@@ -54,7 +56,17 @@ if (!supabaseUrl || !supabaseKey || supabaseUrl === '' || supabaseKey === '') {
     }
   } else {
     try {
-      supabaseClient = createClient(supabaseUrl, supabaseKey)
+      // Add more validation for the key
+      if (!supabaseKey || supabaseKey.length < 20) {
+        throw new Error('Invalid Supabase key format')
+      }
+      
+      supabaseClient = createClient(supabaseUrl, supabaseKey, {
+        auth: {
+          persistSession: false,
+          autoRefreshToken: false
+        }
+      })
       console.log('Supabase client created successfully.')
     } catch (error) {
       console.error('Error creating Supabase client:', error)
