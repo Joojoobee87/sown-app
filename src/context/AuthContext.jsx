@@ -22,7 +22,7 @@ export function AuthProvider({ children }) {
       try {
         // Check if we have a real Supabase client
         if (!supabase || !supabase.auth) {
-          console.warn('No Supabase client available - using mock auth')
+          console.warn('No Supabase client available - redirecting to auth')
           if (isMounted) {
             setLoading(false)
             setError('Authentication not available')

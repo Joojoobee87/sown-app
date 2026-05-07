@@ -54,10 +54,10 @@ export default function ProtectedRoute({ children }) {
       return <SownLoader />
     }
 
-    // If there's an auth error, show children anyway (fallback mode)
+    // If there's an auth error, still try to redirect to auth
     if (error) {
-      console.warn('Auth error, showing content anyway:', error)
-      return children
+      console.warn('Auth error, redirecting to auth:', error)
+      return <Navigate to="/auth" replace />
     }
 
     // Not signed in — redirect to auth screen
@@ -69,8 +69,8 @@ export default function ProtectedRoute({ children }) {
     return children
 
   } catch (err) {
-    // If useAuth hook fails, show children anyway (fallback mode)
-    console.warn('ProtectedRoute error, showing content anyway:', err)
-    return children
+    // If useAuth hook fails, redirect to auth anyway
+    console.warn('ProtectedRoute error, redirecting to auth:', err)
+    return <Navigate to="/auth" replace />
   }
 }
