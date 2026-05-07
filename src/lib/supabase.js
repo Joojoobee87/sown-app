@@ -59,3 +59,4 @@ if (!supabaseUrl || !supabaseKey || supabaseUrl === '' || supabaseKey === '') {
 }
 
 export const supabase = supabaseClient
+// Force deployment trigger Thu May  7 16:29:49 BST 2026
