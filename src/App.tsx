@@ -8,7 +8,10 @@ import NavBar from './components/NavBar'
 export default function App() {
   return (
     <BrowserRouter>
-      <div className="max-w-md mx-auto min-h-screen relative bg-parchment">
+      <div className="max-w-md mx-auto min-h-screen relative bg-parchment" style={{backgroundColor: '#F7F4EF'}}>
+        <div style={{padding: '20px', backgroundColor: 'red', color: 'white', textAlign: 'center'}}>
+          DEBUG: App is rendering
+        </div>
         <Routes>
           <Route path="/" element={<Home />} />
           <Route path="/scan" element={<Scan />} />
