@@ -25,10 +25,20 @@ export function AuthProvider({ children }) {
   const [loading, setLoading] = useState(true)  // true until first session check
 
   useEffect(() => {
+    // Check if we're using mock client
+    if (!supabase.auth.getSession) {
+      console.warn('Using mock Supabase client - setting loading to false')
+      setLoading(false)
+      return
+    }
+
     // 1. Get the current session on mount
     supabase.auth.getSession().then(({ data: { session } }) => {
       setSession(session)
       setUser(session?.user ?? null)
+      setLoading(false)
+    }).catch(error => {
+      console.error('Error getting session:', error)
       setLoading(false)
     })
 

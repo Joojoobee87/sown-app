@@ -1,6 +1,4 @@
-// src/App.jsx — updated with authentication
-// Replace your existing App.jsx with this
-
+// src/App.jsx — Fixed authentication flow
 import { BrowserRouter, Routes, Route } from 'react-router-dom'
 import { AuthProvider }  from './context/AuthContext'
 import ProtectedRoute    from './components/ProtectedRoute'
@@ -14,16 +12,14 @@ import NavBar            from './components/NavBar'
 
 export default function App() {
   return (
-    // AuthProvider wraps everything — makes useAuth() available everywhere
     <AuthProvider>
       <BrowserRouter>
         <div className="max-w-md mx-auto min-h-screen relative bg-parchment">
           <Routes>
-
-            {/* Public routes — no auth required */}
+            {/* Public routes */}
             <Route path="/auth" element={<Auth />} />
-
-            {/* Protected routes — redirect to /auth if not signed in */}
+            
+            {/* Protected routes */}
             <Route path="/" element={
               <ProtectedRoute><Home /></ProtectedRoute>
             }/>
@@ -39,10 +35,8 @@ export default function App() {
             <Route path="/plant/:id" element={
               <ProtectedRoute><PlantProfile /></ProtectedRoute>
             }/>
-
           </Routes>
-
-          {/* NavBar only shows when authenticated */}
+          
           <NavBar />
         </div>
       </BrowserRouter>
