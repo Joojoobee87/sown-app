@@ -30,6 +30,8 @@ if (!supabaseUrl || !supabaseKey || supabaseUrl === '' || supabaseKey === '') {
   }
 } else {
   console.log('Supabase environment variables found. Creating real client.')
+  console.log('URL found:', supabaseUrl ? 'YES' : 'NO')
+  console.log('Key found:', supabaseKey ? 'YES' : 'NO')
   try {
     supabaseClient = createClient(supabaseUrl, supabaseKey)
     console.log('Supabase client created successfully.')
