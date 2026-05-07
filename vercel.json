@@ -1,4 +1,0 @@
-{
-  "buildCommand": "npm run build",
-  "node_version": "20.x"
-}
