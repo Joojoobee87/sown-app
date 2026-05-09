@@ -12,7 +12,7 @@ let supabaseClient
 
 // Always try to create real Supabase client first
 try {
-  const { createClient } = await import('@supabase/supabase-js')
+  const { createClient } = require('@supabase/supabase-js')
   if (createClient && supabaseUrl && supabaseKey) {
     console.log('Creating real Supabase client...')
     supabaseClient = createClient(supabaseUrl, supabaseKey)
