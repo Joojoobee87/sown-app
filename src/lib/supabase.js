@@ -5,6 +5,8 @@ const supabaseKey = import.meta.env.VITE_SUPABASE_ANON_KEY
 console.log('=== Supabase Debug ===')
 console.log('URL value:', supabaseUrl)
 console.log('Key length:', supabaseKey ? supabaseKey.length : 'MISSING')
+console.log('Testing Supabase endpoints...')
+console.log('Auth URL should be:', `${supabaseUrl}/auth/v1/signup`)
 
 let supabaseClient
 
@@ -86,18 +88,24 @@ if (supabaseUrl && supabaseKey && supabaseUrl.startsWith('https://') && supabase
             body: JSON.stringify({ 
               email, 
               password,
-              data: options?.data || {}
+              data: options?.data || {},
+              // Add email confirmation settings
+              email_confirm: true,
+              gotrue: {
+                email: email
+              }
             })
           })
           
           if (response.ok) {
             const data = await response.json()
-            console.log('✅ Real sign up successful for:', email)
+            console.log('✅ Real sign up successful for:', email, '- email should be sent')
             return { 
               data: { 
                 user: { 
                   id: data.user?.id || 'real-user-id', 
                   email, 
+                  email_confirmed: false,
                   created_at: new Date().toISOString() 
                 } 
               }, 
