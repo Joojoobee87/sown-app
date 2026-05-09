@@ -159,6 +159,9 @@ if (supabaseUrl && supabaseKey && supabaseUrl.startsWith('https://') && supabase
           if (response.ok) {
             console.log('✅ Real password reset sent to:', email)
             return { error: null }
+          } else if (response.status === 429) {
+            console.log('⏱️ Rate limit hit for:', email, '- please wait before trying again')
+            return { error: new Error('Too many password reset requests. Please wait a few minutes and try again.') }
           } else {
             const errorData = await response.json().catch(() => ({}))
             console.log('❌ Password reset failed for:', email, response.status, errorData)
