@@ -209,21 +209,16 @@ export default function Auth() {
     clearBanner()
     
     try {
-      // For now, show a message that social auth is coming soon
-      showBanner('info', `${provider === 'google' ? 'Google' : 'Apple'} sign in is coming soon! For now, please use email sign in.`)
-      
-      // TODO: Implement actual social auth once OAuth packages are installed
-      // const { error } = await supabase.auth.signInWithOAuth({
-      //   provider: provider,
-      //   options: {
-      //     redirectTo: `${window.location.origin}/`
-      //   }
-      // })
-      // if (error) throw error
-      // navigate('/')
+      const { error } = await supabase.auth.signInWithOAuth({
+        provider: provider,
+        options: {
+          redirectTo: `${window.location.origin}/`
+        }
+      })
+      if (error) throw error
+      // OAuth will redirect - no need to navigate here
     } catch (err) {
       showBanner('error', friendlyError(err.message))
-    } finally {
       setLoading(false)
     }
   }
