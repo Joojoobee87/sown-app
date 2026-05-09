@@ -153,7 +153,10 @@ if (supabaseUrl && supabaseKey && supabaseUrl.startsWith('https://') && supabase
               'Content-Type': 'application/json',
               'apikey': supabaseKey
             },
-            body: JSON.stringify({ email })
+            body: JSON.stringify({ 
+              email,
+              redirectTo: `${window.location.origin}/password-reset`
+            })
           })
           
           if (response.ok) {
