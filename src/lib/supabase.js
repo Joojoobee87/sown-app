@@ -196,9 +196,9 @@ if (!supabaseClient && supabaseUrl && supabaseKey && supabaseUrl.startsWith('htt
         try {
           console.log('Starting OAuth with provider:', provider)
           
-          // For Google OAuth, redirect to Supabase OAuth endpoint
+          // For Google OAuth, redirect to Supabase OAuth endpoint with callback handling
           if (provider === 'google') {
-            const redirectUrl = `${supabaseUrl}/auth/v1/authorize?provider=google&redirect_to=${encodeURIComponent(window.location.origin)}`
+            const redirectUrl = `${supabaseUrl}/auth/v1/authorize?provider=google&redirect_to=${encodeURIComponent(window.location.origin + '/auth')}`
             window.location.href = redirectUrl
             return { error: null }
           }

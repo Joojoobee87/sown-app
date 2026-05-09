@@ -175,7 +175,49 @@ export default function Auth() {
       }
     }
 
+    // ── Handle OAuth callback from URL ───────────────────────────────────────────
+    const handleOAuthCallback = async () => {
+      const accessToken = searchParams.get('access_token')
+      const refreshToken = searchParams.get('refresh_token')
+      const error = searchParams.get('error')
+      const errorDescription = searchParams.get('error_description')
+      
+      if (error) {
+        setBanner({ 
+          type: 'error', 
+          message: `Google authentication failed: ${errorDescription || error}` 
+        })
+        navigate('/auth')
+        return
+      }
+      
+      if (accessToken && refreshToken) {
+        setMode('verify')
+        setVerifying(true)
+        try {
+          const { error } = await supabase.auth.setSession({
+            access_token: accessToken,
+            refresh_token: refreshToken
+          })
+          
+          if (error) {
+            setBanner({ type: 'error', message: 'Google authentication failed. Please try again.' })
+            navigate('/auth')
+          } else {
+            setBanner({ type: 'success', message: 'Google authentication successful!' })
+            setTimeout(() => navigate('/'), 2000)
+          }
+        } catch (err) {
+          setBanner({ type: 'error', message: 'Google authentication failed. Please try again.' })
+          navigate('/auth')
+        } finally {
+          setVerifying(false)
+        }
+      }
+    }
+
     verifyToken()
+    handleOAuthCallback()
   }, [searchParams, navigate])
 
   const showBanner = (type, message) => setBanner({ type, message })
