@@ -206,6 +206,6 @@ export default function PasswordReset() {
           </div>
         </div>
       </div>
-    )
+    </div>
   )
 }
