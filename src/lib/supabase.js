@@ -23,15 +23,7 @@ try {
     console.log('URL format check:', supabaseUrl.startsWith('https://'))
     console.log('Key format check:', supabaseKey.startsWith('eyJ'))
     
-    // Try creating client with explicit options
-    const clientOptions = {
-      auth: {
-        persistSession: false,
-        autoRefreshToken: false
-      }
-    }
-    
-    supabaseClient = createClient(supabaseUrl, supabaseKey, clientOptions)
+    supabaseClient = createClient(supabaseUrl, supabaseKey)
     console.log('Real Supabase client created successfully')
   } else {
     console.log('Missing required parameters for real client')
