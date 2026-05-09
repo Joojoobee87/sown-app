@@ -10,61 +10,82 @@ console.log('URL type:', typeof supabaseUrl)
 console.log('Key length:', supabaseKey ? supabaseKey.length : 'MISSING')
 console.log('Key starts with eyJ?:', supabaseKey?.startsWith('eyJ'))
 
-let supabaseClient
+// Initialize with mock client immediately to avoid undefined errors
+let supabaseClient = createMockClient()
 
-// Create Supabase client with validation and multiple approaches
-async function initializeSupabaseClient() {
+// Try to upgrade to real client asynchronously
+async function upgradeToRealClient() {
   if (supabaseUrl && supabaseKey && supabaseUrl.startsWith('https://') && supabaseKey.startsWith('eyJ')) {
     try {
-      console.log('Creating real Supabase client with validated credentials...')
+      console.log('Upgrading to real Supabase client...')
       
       // Approach 1: Try dynamic import to avoid bundling issues
       try {
         console.log('Trying dynamic import...')
         const { createClient: dynamicCreateClient } = await import('@supabase/supabase-js')
-        supabaseClient = dynamicCreateClient(supabaseUrl, supabaseKey)
+        const realClient = dynamicCreateClient(supabaseUrl, supabaseKey)
+        if (realClient && realClient.auth) {
+          supabaseClient = realClient
+          console.log('Real Supabase client created successfully - emails will work!')
+        } else {
+          throw new Error('Invalid client structure')
+        }
       } catch (e1) {
         console.log('Dynamic import failed, trying destructured import...')
         try {
           // Approach 2: Try destructured import
           const supabase = await import('@supabase/supabase-js')
-          supabaseClient = supabase.createClient(supabaseUrl, supabaseKey)
+          const realClient = supabase.createClient(supabaseUrl, supabaseKey)
+          if (realClient && realClient.auth) {
+            supabaseClient = realClient
+            console.log('Real Supabase client created successfully - emails will work!')
+          } else {
+            throw new Error('Invalid client structure')
+          }
         } catch (e2) {
           console.log('Destructured import failed, trying default import...')
           try {
             // Approach 3: Try default import with different syntax
             const supabaseModule = await import('@supabase/supabase-js')
             const Client = supabaseModule.default || supabaseModule.SupabaseClient
-            supabaseClient = new Client(supabaseUrl, supabaseKey)
+            const realClient = new Client(supabaseUrl, supabaseKey)
+            if (realClient && realClient.auth) {
+              supabaseClient = realClient
+              console.log('Real Supabase client created successfully - emails will work!')
+            } else {
+              throw new Error('Invalid client structure')
+            }
           } catch (e3) {
             console.log('Default import failed, trying older API syntax...')
             try {
               // Approach 4: Try older Supabase syntax
               const supabase = await import('@supabase/supabase-js')
-              supabaseClient = new supabase.SupabaseClient(supabaseUrl, supabaseKey)
+              const realClient = new supabase.SupabaseClient(supabaseUrl, supabaseKey)
+              if (realClient && realClient.auth) {
+                supabaseClient = realClient
+                console.log('Real Supabase client created successfully - emails will work!')
+              } else {
+                throw new Error('Invalid client structure')
+              }
             } catch (e4) {
-              throw new Error('All initialization approaches failed')
+              console.warn('All real client attempts failed, keeping mock client')
             }
           }
         }
       }
-      
-      console.log('Real Supabase client created successfully - emails will work!')
     } catch (error) {
-      console.error('All Supabase client creation attempts failed:', error)
-      console.warn('Falling back to mock client - emails will not work')
-      supabaseClient = createMockClient()
+      console.error('Failed to upgrade to real client:', error)
+      console.warn('Keeping mock client - emails will not work')
     }
   } else {
-    console.warn('Invalid Supabase environment variables, using mock client')
+    console.warn('Invalid Supabase environment variables, keeping mock client')
     console.log('URL valid:', supabaseUrl?.startsWith('https://'))
     console.log('Key valid:', supabaseKey?.startsWith('eyJ'))
-    supabaseClient = createMockClient()
   }
 }
 
-// Initialize the client
-initializeSupabaseClient()
+// Start upgrade process (non-blocking)
+upgradeToRealClient()
 
 function createMockClient() {
   return {
