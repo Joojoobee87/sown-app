@@ -47,10 +47,7 @@ export function AuthProvider({ children }) {
               setError(null)
             }
           }
-        ).catch((error) => {
-          console.error('Auth state change error:', error)
-          setError(error.message)
-        })
+        )
         
         subscription = authSub
 
