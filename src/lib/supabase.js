@@ -12,43 +12,59 @@ console.log('Key starts with eyJ?:', supabaseKey?.startsWith('eyJ'))
 
 let supabaseClient
 
-// Create Supabase client with validation and alternative initialization
-if (supabaseUrl && supabaseKey && supabaseUrl.startsWith('https://') && supabaseKey.startsWith('eyJ')) {
-  try {
-    console.log('Creating real Supabase client with validated credentials...')
-    
-    // Try different initialization approaches for version compatibility
+// Create Supabase client with validation and multiple approaches
+async function initializeSupabaseClient() {
+  if (supabaseUrl && supabaseKey && supabaseUrl.startsWith('https://') && supabaseKey.startsWith('eyJ')) {
     try {
-      // Approach 1: Standard initialization
-      supabaseClient = createClient(supabaseUrl, supabaseKey)
-    } catch (e1) {
-      console.log('Standard init failed, trying with empty options...')
+      console.log('Creating real Supabase client with validated credentials...')
+      
+      // Approach 1: Try dynamic import to avoid bundling issues
       try {
-        // Approach 2: With empty options object
-        supabaseClient = createClient(supabaseUrl, supabaseKey, {})
-      } catch (e2) {
-        console.log('Empty options failed, trying with null options...')
+        console.log('Trying dynamic import...')
+        const { createClient: dynamicCreateClient } = await import('@supabase/supabase-js')
+        supabaseClient = dynamicCreateClient(supabaseUrl, supabaseKey)
+      } catch (e1) {
+        console.log('Dynamic import failed, trying destructured import...')
         try {
-          // Approach 3: With null options
-          supabaseClient = createClient(supabaseUrl, supabaseKey, null)
-        } catch (e3) {
-          throw new Error('All initialization approaches failed')
+          // Approach 2: Try destructured import
+          const supabase = await import('@supabase/supabase-js')
+          supabaseClient = supabase.createClient(supabaseUrl, supabaseKey)
+        } catch (e2) {
+          console.log('Destructured import failed, trying default import...')
+          try {
+            // Approach 3: Try default import with different syntax
+            const supabaseModule = await import('@supabase/supabase-js')
+            const Client = supabaseModule.default || supabaseModule.SupabaseClient
+            supabaseClient = new Client(supabaseUrl, supabaseKey)
+          } catch (e3) {
+            console.log('Default import failed, trying older API syntax...')
+            try {
+              // Approach 4: Try older Supabase syntax
+              const supabase = await import('@supabase/supabase-js')
+              supabaseClient = new supabase.SupabaseClient(supabaseUrl, supabaseKey)
+            } catch (e4) {
+              throw new Error('All initialization approaches failed')
+            }
+          }
         }
       }
+      
+      console.log('Real Supabase client created successfully - emails will work!')
+    } catch (error) {
+      console.error('All Supabase client creation attempts failed:', error)
+      console.warn('Falling back to mock client - emails will not work')
+      supabaseClient = createMockClient()
     }
-    
-    console.log('Real Supabase client created successfully - emails will work!')
-  } catch (error) {
-    console.error('All Supabase client creation attempts failed:', error)
-    console.warn('Falling back to mock client - emails will not work')
+  } else {
+    console.warn('Invalid Supabase environment variables, using mock client')
+    console.log('URL valid:', supabaseUrl?.startsWith('https://'))
+    console.log('Key valid:', supabaseKey?.startsWith('eyJ'))
     supabaseClient = createMockClient()
   }
-} else {
-  console.warn('Invalid Supabase environment variables, using mock client')
-  console.log('URL valid:', supabaseUrl?.startsWith('https://'))
-  console.log('Key valid:', supabaseKey?.startsWith('eyJ'))
-  supabaseClient = createMockClient()
 }
+
+// Initialize the client
+initializeSupabaseClient()
 
 function createMockClient() {
   return {
