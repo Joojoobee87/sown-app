@@ -14,20 +14,26 @@ let supabaseClient
 try {
   let createClient
   
-  // Try to import the Supabase client
+  // Try to import Supabase client
   if (typeof window !== 'undefined') {
-    // Browser environment - use global import
-    const supabaseModule = window.supabase || {}
-    createClient = supabaseModule.createClient
+    // Browser environment - use dynamic import
+    import('@supabase/supabase-js').then((supabaseModule) => {
+      createClient = supabaseModule.createClient
+      if (createClient && supabaseUrl && supabaseKey) {
+        console.log('Creating real Supabase client...')
+        supabaseClient = createClient(supabaseUrl, supabaseKey)
+      }
+    }).catch((error) => {
+      console.log('Failed to create real Supabase client, using mock:', error)
+    })
   } else {
     // Node.js environment - use require
     const supabaseModule = require('@supabase/supabase-js')
     createClient = supabaseModule.createClient
-  }
-  
-  if (createClient && supabaseUrl && supabaseKey) {
-    console.log('Creating real Supabase client...')
-    supabaseClient = createClient(supabaseUrl, supabaseKey)
+    if (createClient && supabaseUrl && supabaseKey) {
+      console.log('Creating real Supabase client...')
+      supabaseClient = createClient(supabaseUrl, supabaseKey)
+    }
   }
 } catch (error) {
   console.log('Failed to create real Supabase client, using mock:', error)
