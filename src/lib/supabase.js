@@ -12,14 +12,34 @@ console.log('Key starts with eyJ?:', supabaseKey?.startsWith('eyJ'))
 
 let supabaseClient
 
-// Create Supabase client with validation
+// Create Supabase client with validation and alternative initialization
 if (supabaseUrl && supabaseKey && supabaseUrl.startsWith('https://') && supabaseKey.startsWith('eyJ')) {
   try {
     console.log('Creating real Supabase client with validated credentials...')
-    supabaseClient = createClient(supabaseUrl, supabaseKey)
+    
+    // Try different initialization approaches for version compatibility
+    try {
+      // Approach 1: Standard initialization
+      supabaseClient = createClient(supabaseUrl, supabaseKey)
+    } catch (e1) {
+      console.log('Standard init failed, trying with empty options...')
+      try {
+        // Approach 2: With empty options object
+        supabaseClient = createClient(supabaseUrl, supabaseKey, {})
+      } catch (e2) {
+        console.log('Empty options failed, trying with null options...')
+        try {
+          // Approach 3: With null options
+          supabaseClient = createClient(supabaseUrl, supabaseKey, null)
+        } catch (e3) {
+          throw new Error('All initialization approaches failed')
+        }
+      }
+    }
+    
     console.log('Real Supabase client created successfully - emails will work!')
   } catch (error) {
-    console.error('Failed to create Supabase client:', error)
+    console.error('All Supabase client creation attempts failed:', error)
     console.warn('Falling back to mock client - emails will not work')
     supabaseClient = createMockClient()
   }
