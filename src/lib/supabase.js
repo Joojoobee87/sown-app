@@ -1,19 +1,21 @@
 import { createClient } from '@supabase/supabase-js'
 
-// Get environment variables
+// Get environment variables with detailed debugging
 const supabaseUrl = import.meta.env.VITE_SUPABASE_URL
 const supabaseKey = import.meta.env.VITE_SUPABASE_ANON_KEY
 
+console.log('=== Supabase Debug ===')
+console.log('URL value:', supabaseUrl)
+console.log('URL type:', typeof supabaseUrl)
+console.log('Key length:', supabaseKey ? supabaseKey.length : 'MISSING')
+console.log('Key starts with eyJ?:', supabaseKey?.startsWith('eyJ'))
+
 let supabaseClient
 
-// Create Supabase client with minimal configuration to avoid headers error
-if (supabaseUrl && supabaseKey) {
+// Create Supabase client with validation
+if (supabaseUrl && supabaseKey && supabaseUrl.startsWith('https://') && supabaseKey.startsWith('eyJ')) {
   try {
-    console.log('Creating real Supabase client...')
-    console.log('URL found:', !!supabaseUrl)
-    console.log('Key found:', !!supabaseKey)
-    
-    // Try minimal client configuration first
+    console.log('Creating real Supabase client with validated credentials...')
     supabaseClient = createClient(supabaseUrl, supabaseKey)
     console.log('Real Supabase client created successfully - emails will work!')
   } catch (error) {
@@ -22,9 +24,9 @@ if (supabaseUrl && supabaseKey) {
     supabaseClient = createMockClient()
   }
 } else {
-  console.warn('Missing Supabase environment variables, using mock client')
-  console.log('VITE_SUPABASE_URL:', supabaseUrl)
-  console.log('VITE_SUPABASE_ANON_KEY:', supabaseKey ? '***' : 'MISSING')
+  console.warn('Invalid Supabase environment variables, using mock client')
+  console.log('URL valid:', supabaseUrl?.startsWith('https://'))
+  console.log('Key valid:', supabaseKey?.startsWith('eyJ'))
   supabaseClient = createMockClient()
 }
 
