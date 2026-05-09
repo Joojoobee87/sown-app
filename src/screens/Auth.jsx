@@ -146,6 +146,9 @@ export default function Auth() {
 
   // ── Handle email verification from URL ───────────────────────────────────
   useEffect(() => {
+    // Store auth state callback globally for mock client
+    window.authStateCallback = null
+    
     const verifyToken = async () => {
       const accessToken = searchParams.get('access_token')
       const refreshToken = searchParams.get('refresh_token')

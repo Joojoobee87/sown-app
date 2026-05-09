@@ -186,6 +186,12 @@ if (!supabaseClient && supabaseUrl && supabaseKey && supabaseUrl.startsWith('htt
           localStorage.setItem('supabase_access_token', access_token)
           localStorage.setItem('supabase_refresh_token', refresh_token)
           console.log('Real session set with tokens')
+          
+          // Trigger auth state change to update UI
+          if (typeof window !== 'undefined' && window.authStateCallback) {
+            window.authStateCallback('SIGNED_IN', { user: { email: 'authenticated-user' } })
+          }
+          
           return { error: null }
         } catch (error) {
           console.log('Real session set failed:', error)
