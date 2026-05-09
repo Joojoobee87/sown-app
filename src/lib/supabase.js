@@ -160,7 +160,7 @@ if (!supabaseClient && supabaseUrl && supabaseKey && supabaseUrl.startsWith('htt
             },
             body: JSON.stringify({ 
               email,
-              redirectTo: `${window.location.origin}/password-reset`
+              redirectTo: 'https://sown-app.vercel.app/password-reset'
             })
           })
           
@@ -189,6 +189,23 @@ if (!supabaseClient && supabaseUrl && supabaseKey && supabaseUrl.startsWith('htt
           return { error: null }
         } catch (error) {
           console.log('Real session set failed:', error)
+          return { error }
+        }
+      },
+      signInWithOAuth: async ({ provider, options }) => {
+        try {
+          console.log('Starting OAuth with provider:', provider)
+          
+          // For Google OAuth, redirect to Supabase OAuth endpoint
+          if (provider === 'google') {
+            const redirectUrl = `${supabaseUrl}/auth/v1/authorize?provider=google&redirect_to=${encodeURIComponent(window.location.origin)}`
+            window.location.href = redirectUrl
+            return { error: null }
+          }
+          
+          return { error: new Error(`Unsupported OAuth provider: ${provider}`) }
+        } catch (error) {
+          console.log('OAuth failed for:', provider, error)
           return { error }
         }
       },
