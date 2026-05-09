@@ -95,10 +95,29 @@ This guide shows how to configure Google and Apple OAuth providers in Supabase f
 3. Monitor authentication logs for issues
 4. Set up proper error handling for OAuth failures
 
+## Step 4: Password Reset Configuration (IMPORTANT)
+
+### 4.1 Configure Password Reset URL in Supabase Dashboard
+1. Go to your Supabase project dashboard
+2. Navigate to "Authentication" → "Settings"
+3. Find "Site URL" section
+4. Set your production URL (e.g., https://your-app.vercel.app)
+5. Find "Password Reset Page" section
+6. Set redirect URL to: `https://your-app.vercel.app/password-reset`
+7. Save the configuration
+
+### 4.2 Test Password Reset Flow
+1. Request password reset from your app
+2. Check email contains correct redirect URL
+3. Click link should redirect to `/password-reset` page
+4. Verify token validation works properly
+
 ## Current Implementation Status
 ✅ UI components added (Google and Apple buttons)
 ✅ Supabase OAuth integration implemented
 ✅ Google OAuth configured in Supabase dashboard
+✅ Password reset screen created and routed
+⚠️ Password reset URL needs dashboard configuration
 ⏳ Google OAuth testing required
 ⏳ Apple OAuth configuration deferred (cost consideration)
 ⏳ End-to-end testing for Google auth
