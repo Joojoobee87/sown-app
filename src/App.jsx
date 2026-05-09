@@ -9,6 +9,7 @@ import Library from './screens/Library'
 import Calendar from './screens/Calendar'
 import PlantProfile from './screens/PlantProfile'
 import NavBar from './components/NavBar'
+import PasswordReset from './screens/PasswordReset'
 
 export default function App() {
   return (
@@ -16,8 +17,9 @@ export default function App() {
       <AuthProvider>
         <div className="max-w-md mx-auto min-h-screen relative bg-parchment">
           <Routes>
-            {/* Public auth route */}
+            {/* Public auth routes */}
             <Route path="/auth" element={<Auth />} />
+            <Route path="/password-reset" element={<PasswordReset />} />
             
             {/* Protected routes */}
             <Route path="/" element={
