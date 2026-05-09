@@ -98,13 +98,21 @@ This guide shows how to configure Google and Apple OAuth providers in Supabase f
 ## Current Implementation Status
 ✅ UI components added (Google and Apple buttons)
 ✅ Supabase OAuth integration implemented
-⏳ Google OAuth configuration needed
-⏳ Apple OAuth configuration needed
-⏳ End-to-end testing required
+✅ Google OAuth configured in Supabase dashboard
+⏳ Google OAuth testing required
+⏳ Apple OAuth configuration deferred (cost consideration)
+⏳ End-to-end testing for Google auth
 
 ## Next Steps
-1. Complete Google OAuth setup
-2. Complete Apple OAuth setup (if needed)
-3. Test authentication flow
-4. Deploy to production
+1. ✅ Complete Google OAuth setup
+2. Test Google authentication flow
+3. Deploy to production with Google auth
+4. Configure Apple OAuth when ready for launch (£79/year)
 5. Monitor and maintain
+
+## Testing Instructions (Current Status)
+Since Node.js has installation issues, you can test Google OAuth by:
+1. Deploying to Vercel and testing in production
+2. Using the deployed app URL to test Google sign-in
+3. Checking browser console for OAuth flow errors
+4. Verifying user creation in Supabase auth users table
