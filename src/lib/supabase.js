@@ -10,8 +10,19 @@ console.log('Auth URL should be:', `${supabaseUrl}/auth/v1/signup`)
 
 let supabaseClient
 
-// Manual Supabase client implementation
-if (supabaseUrl && supabaseKey && supabaseUrl.startsWith('https://') && supabaseKey.startsWith('eyJ')) {
+// Always try to create real Supabase client first
+try {
+  const { createClient } = await import('@supabase/supabase-js')
+  if (createClient && supabaseUrl && supabaseKey) {
+    console.log('Creating real Supabase client...')
+    supabaseClient = createClient(supabaseUrl, supabaseKey)
+  }
+} catch (error) {
+  console.log('Failed to create real Supabase client, using mock:', error)
+}
+
+// Fallback to manual client only if real client creation fails
+if (!supabaseClient && supabaseUrl && supabaseKey && supabaseUrl.startsWith('https://') && supabaseKey.startsWith('eyJ')) {
   console.log('Creating manual Supabase client implementation...')
   
   supabaseClient = {
