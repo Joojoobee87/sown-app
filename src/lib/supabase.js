@@ -204,7 +204,7 @@ if (!supabaseClient && supabaseUrl && supabaseKey && supabaseUrl.startsWith('htt
           
           // For Google OAuth, redirect to Supabase OAuth endpoint with callback handling
           if (provider === 'google') {
-            const redirectUrl = `${supabaseUrl}/auth/v1/authorize?provider=google&redirect_to=${encodeURIComponent(window.location.origin + '/auth')}`
+            const redirectUrl = `${supabaseUrl}/auth/v1/authorize?provider=google&redirect_to=${encodeURIComponent(window.location.origin)}`
             window.location.href = redirectUrl
             return { error: null }
           }

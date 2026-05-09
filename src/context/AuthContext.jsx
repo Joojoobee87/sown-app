@@ -49,6 +49,18 @@ export function AuthProvider({ children }) {
           }
         )
         
+        // Store auth callback for OAuth redirects
+        if (typeof window !== 'undefined') {
+          window.authStateCallback = (_event, session) => {
+            console.log('OAuth callback triggered:', _event, !!session)
+            if (isMounted) {
+              setSession(session)
+              setUser(session?.user ?? null)
+              setError(null)
+            }
+          }
+        }
+        
         subscription = authSub
 
       } catch (err) {
