@@ -89,14 +89,14 @@ if (supabaseUrl && supabaseKey && supabaseUrl.startsWith('https://') && supabase
               data: options?.data || {}
             })
           })
-          const data = await response.json()
           
-          if (data.user) {
-            console.log('Real sign up successful for:', email)
+          if (response.ok) {
+            const data = await response.json()
+            console.log('✅ Real sign up successful for:', email)
             return { 
               data: { 
                 user: { 
-                  id: data.user.id || 'real-user-id', 
+                  id: data.user?.id || 'real-user-id', 
                   email, 
                   created_at: new Date().toISOString() 
                 } 
@@ -104,10 +104,12 @@ if (supabaseUrl && supabaseKey && supabaseUrl.startsWith('https://') && supabase
               error: null 
             }
           } else {
-            return { data: { user: null }, error: data }
+            const errorData = await response.json().catch(() => ({}))
+            console.log('❌ Sign up failed for:', email, response.status, errorData)
+            return { data: { user: null }, error: errorData || new Error(`HTTP ${response.status}`) }
           }
         } catch (error) {
-          console.log('Real sign up failed for:', email, error)
+          console.log('❌ Real sign up failed for:', email, error)
           return { data: { user: null }, error }
         }
       },
@@ -121,10 +123,17 @@ if (supabaseUrl && supabaseKey && supabaseUrl.startsWith('https://') && supabase
             },
             body: JSON.stringify({ email })
           })
-          console.log('Real magic link sent to:', email)
-          return { error: null }
+          
+          if (response.ok) {
+            console.log('✅ Real magic link sent to:', email)
+            return { error: null }
+          } else {
+            const errorData = await response.json().catch(() => ({}))
+            console.log('❌ Magic link failed for:', email, response.status, errorData)
+            return { error: errorData || new Error(`HTTP ${response.status}`) }
+          }
         } catch (error) {
-          console.log('Real magic link failed for:', email, error)
+          console.log('❌ Real magic link failed for:', email, error)
           return { error }
         }
       },
@@ -138,10 +147,17 @@ if (supabaseUrl && supabaseKey && supabaseUrl.startsWith('https://') && supabase
             },
             body: JSON.stringify({ email })
           })
-          console.log('Real password reset sent to:', email)
-          return { error: null }
+          
+          if (response.ok) {
+            console.log('✅ Real password reset sent to:', email)
+            return { error: null }
+          } else {
+            const errorData = await response.json().catch(() => ({}))
+            console.log('❌ Password reset failed for:', email, response.status, errorData)
+            return { error: errorData || new Error(`HTTP ${response.status}`) }
+          }
         } catch (error) {
-          console.log('Real password reset failed for:', email, error)
+          console.log('❌ Real password reset failed for:', email, error)
           return { error }
         }
       },
