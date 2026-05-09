@@ -287,6 +287,14 @@ function createMockClient() {
         console.log('Mock password reset sent to:', email)
         return { error: null }
       },
+      signInWithOAuth: async ({ provider, options }) => {
+        console.log('Mock OAuth sign in with provider:', provider)
+        // Simulate OAuth redirect
+        if (options?.redirectTo) {
+          window.location.href = `${supabaseUrl}/auth/v1/authorize?provider=${provider}&redirect_to=${encodeURIComponent(options.redirectTo)}`
+        }
+        return { error: null }
+      },
       setSession: async ({ access_token, refresh_token }) => {
         console.log('Mock session set with tokens')
         return { error: null }
