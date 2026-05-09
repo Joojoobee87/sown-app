@@ -12,7 +12,14 @@ let supabaseClient
 
 // Always try to create real Supabase client first
 try {
-  const { createClient } = require('@supabase/supabase-js')
+  let createClient
+  // Try dynamic import for browser environments
+  if (typeof window !== 'undefined') {
+    createClient = window.require('@supabase/supabase-js')
+  } else {
+    createClient = require('@supabase/supabase-js')
+  }
+  
   if (createClient && supabaseUrl && supabaseKey) {
     console.log('Creating real Supabase client...')
     supabaseClient = createClient(supabaseUrl, supabaseKey)
