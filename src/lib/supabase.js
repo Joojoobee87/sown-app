@@ -5,7 +5,11 @@ const supabaseUrl = import.meta.env.VITE_SUPABASE_URL
 const supabaseKey = import.meta.env.VITE_SUPABASE_ANON_KEY
 
 // Fix URL format - ensure it starts with https://
-const fixedSupabaseUrl = supabaseUrl && supabaseUrl.startsWith('https://') ? supabaseUrl : (supabaseUrl.startsWith('http://') ? `https://${supabaseUrl.substring(7)}` : `https://${supabaseUrl}`)
+const fixedSupabaseUrl = supabaseUrl ? 
+  (supabaseUrl.startsWith('https://') && !supabaseUrl.startsWith('https://https://') ? supabaseUrl : 
+   supabaseUrl.startsWith('https://https://') ? supabaseUrl.replace('https://https://', 'https://') :
+   supabaseUrl.startsWith('http://') ? `https://${supabaseUrl.substring(7)}` : 
+   `https://${supabaseUrl}`) : null
 
 console.log('=== Supabase Debug ===')
 console.log('URL value:', supabaseUrl)
