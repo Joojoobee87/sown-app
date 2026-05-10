@@ -4,11 +4,15 @@ import { createClient } from '@supabase/supabase-js'
 const supabaseUrl = import.meta.env.VITE_SUPABASE_URL
 const supabaseKey = import.meta.env.VITE_SUPABASE_ANON_KEY
 
+// Fix URL format - ensure it starts with https://
+const fixedSupabaseUrl = supabaseUrl && !supabaseUrl.startsWith('https://') ? `https://${supabaseUrl}` : supabaseUrl
+
 console.log('=== Supabase Debug ===')
 console.log('URL value:', supabaseUrl)
+console.log('Fixed URL:', fixedSupabaseUrl)
 console.log('Key length:', supabaseKey ? supabaseKey.length : 'MISSING')
 console.log('Testing Supabase endpoints...')
-console.log('Auth URL should be:', `${supabaseUrl}/auth/v1/signup`)
+console.log('Auth URL should be:', `${fixedSupabaseUrl}/auth/v1/signup`)
 
 let supabaseClient
 
@@ -16,7 +20,7 @@ let supabaseClient
 console.log('Using manual Supabase client implementation - emails will work!')
 
 // Fallback to manual client only if real client creation fails
-if (!supabaseClient && supabaseUrl && supabaseKey && supabaseUrl.startsWith('https://') && supabaseKey.startsWith('eyJ')) {
+if (!supabaseClient && fixedSupabaseUrl && supabaseKey && fixedSupabaseUrl.startsWith('https://') && supabaseKey.startsWith('eyJ')) {
   console.log('Creating manual Supabase client implementation...')
   
   supabaseClient = {
@@ -24,7 +28,7 @@ if (!supabaseClient && supabaseUrl && supabaseKey && supabaseUrl.startsWith('htt
     auth: {
       getSession: async () => {
         try {
-          const response = await fetch(`${supabaseUrl}/auth/v1/user`, {
+          const response = await fetch(`${fixedSupabaseUrl}/auth/v1/user`, {
             headers: {
               'Authorization': `Bearer ${supabaseKey}`,
               'apikey': supabaseKey
@@ -52,7 +56,7 @@ if (!supabaseClient && supabaseUrl && supabaseKey && supabaseUrl.startsWith('htt
       },
       signInWithPassword: async ({ email, password }) => {
         try {
-          const response = await fetch(`${supabaseUrl}/auth/v1/token?grant_type=password`, {
+          const response = await fetch(`${fixedSupabaseUrl}/auth/v1/token?grant_type=password`, {
             method: 'POST',
             headers: {
               'Content-Type': 'application/json',
@@ -84,7 +88,7 @@ if (!supabaseClient && supabaseUrl && supabaseKey && supabaseUrl.startsWith('htt
       },
       signUp: async ({ email, password, options }) => {
         try {
-          const response = await fetch(`${supabaseUrl}/auth/v1/signup`, {
+          const response = await fetch(`${fixedSupabaseUrl}/auth/v1/signup`, {
             method: 'POST',
             headers: {
               'Content-Type': 'application/json',
@@ -128,7 +132,7 @@ if (!supabaseClient && supabaseUrl && supabaseKey && supabaseUrl.startsWith('htt
       },
       signInWithOtp: async ({ email }) => {
         try {
-          const response = await fetch(`${supabaseUrl}/auth/v1/magiclink`, {
+          const response = await fetch(`${fixedSupabaseUrl}/auth/v1/magiclink`, {
             method: 'POST',
             headers: {
               'Content-Type': 'application/json',
@@ -152,15 +156,22 @@ if (!supabaseClient && supabaseUrl && supabaseKey && supabaseUrl.startsWith('htt
       },
       resetPasswordForEmail: async (email, options) => {
         try {
-          const response = await fetch(`${supabaseUrl}/auth/v1/recover`, {
+          const redirectUrl = `${window.location.origin}/password-reset`
+          
+          console.log('🔧 Sending password reset to:', email)
+          console.log('🔧 Using Supabase URL:', fixedSupabaseUrl)
+          console.log('🔧 Redirect URL:', redirectUrl)
+          
+          const response = await fetch(`${fixedSupabaseUrl}/auth/v1/recover`, {
             method: 'POST',
             headers: {
               'Content-Type': 'application/json',
-              'apikey': supabaseKey
+              'apikey': supabaseKey,
+              'Authorization': `Bearer ${supabaseKey}`
             },
             body: JSON.stringify({ 
               email,
-              redirectTo: 'https://sown-app.vercel.app/password-reset'
+              redirectTo: redirectUrl
             })
           })
           
@@ -204,7 +215,7 @@ if (!supabaseClient && supabaseUrl && supabaseKey && supabaseUrl.startsWith('htt
           
           // For Google OAuth, redirect to Supabase OAuth endpoint with callback handling
           if (provider === 'google') {
-            const redirectUrl = `${supabaseUrl}/auth/v1/authorize?provider=google&redirect_to=${encodeURIComponent(window.location.origin)}`
+            const redirectUrl = `${fixedSupabaseUrl}/auth/v1/authorize?provider=google&redirect_to=${encodeURIComponent(window.location.origin)}`
             window.location.href = redirectUrl
             return { error: null }
           }
