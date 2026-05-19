@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { useSearchParams, useNavigate } from 'react-router-dom'
+import { useNavigate } from 'react-router-dom'
 import { supabase } from '../lib/supabase'
 
 export default function PasswordReset() {
@@ -8,203 +8,141 @@ export default function PasswordReset() {
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
   const [success, setSuccess] = useState(false)
-  const [tokenValid, setTokenValid] = useState(null)
-  
-  const searchParams = useSearchParams()
+  const [ready, setReady] = useState(false)
   const navigate = useNavigate()
-  const token = searchParams.get('token')
 
   useEffect(() => {
-    if (token) {
-      // Validate token by attempting to use it
-      const validateToken = async () => {
-        try {
-          const response = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/auth/v1/verify?token=${token}`, {
-            method: 'GET',
-            headers: {
-              'apikey': import.meta.env.VITE_SUPABASE_ANON_KEY
-            }
-          })
-          
-          if (response.ok) {
-            setTokenValid(true)
-          } else {
-            setTokenValid(false)
-          }
-        } catch (error) {
-          console.error('Token validation error:', error)
-          setTokenValid(false)
-        }
+    // Supabase fires PASSWORD_RECOVERY when the user arrives via the reset link
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event) => {
+      if (event === 'PASSWORD_RECOVERY') {
+        setReady(true)
       }
-
-      validateToken()
-    } else {
-      setTokenValid(false)
-    }
-  }, [token])
+    })
+    return () => subscription.unsubscribe()
+  }, [])
 
   const handleSubmit = async (e) => {
     e.preventDefault()
-    
     if (!password || !confirmPassword) {
-      setError('Please fill in all fields')
+      setError('Please fill in both fields.')
       return
     }
-
     if (password !== confirmPassword) {
-      setError('Passwords do not match')
+      setError('Passwords do not match.')
       return
     }
-
-    if (password.length < 6) {
-      setError('Password must be at least 6 characters')
+    if (password.length < 8) {
+      setError('Password must be at least 8 characters.')
       return
     }
-
     setLoading(true)
     setError('')
-
-    try {
-      const response = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/auth/v1/user/update`, {
-        method: 'PUT',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`,
-          'apikey': import.meta.env.VITE_SUPABASE_ANON_KEY
-        },
-        body: JSON.stringify({ password })
-      })
-
-      if (response.ok) {
-        setSuccess(true)
-        setTimeout(() => {
-          navigate('/auth')
-        }, 2000)
-      } else {
-        const errorData = await response.json().catch(() => ({}))
-        setError(errorData.message || 'Failed to reset password')
-      }
-    } catch (error) {
-      console.error('Password reset error:', error)
-      setError('Something went wrong. Please try again.')
-    } finally {
+    const { error } = await supabase.auth.updateUser({ password })
+    if (error) {
+      setError(error.message)
       setLoading(false)
+    } else {
+      setSuccess(true)
+      setTimeout(() => navigate('/auth'), 2500)
     }
   }
 
-  if (tokenValid === null) {
+  // Waiting for the PASSWORD_RECOVERY event from the email link
+  if (!ready && !success) {
     return (
-      <div className="min-h-screen bg-parchment flex items-center justify-center p-4">
-        <div className="max-w-md w-full">
-          <div className="bg-white rounded-lg shadow-lg p-8">
-            <div className="text-center">
-              <div className="mb-8">
-                <h1 className="text-3xl font-bold text-leaf-800 mb-2">Sown</h1>
-                <p className="text-gray-600">Resetting your password...</p>
-              </div>
-            </div>
-          </div>
+      <div className="min-h-screen bg-fern flex flex-col items-center justify-center gap-4">
+        <div className="animate-pulse">
+          <svg width="36" height="48" viewBox="0 0 36 48">
+            <ellipse cx="18" cy="13" rx="11" ry="13" fill="#D4DCCA"/>
+            <ellipse cx="18" cy="35" rx="11" ry="13" fill="#D4DCCA" transform="rotate(180 18 35)"/>
+          </svg>
         </div>
-      </div>
-    )
-  }
-
-  if (tokenValid === false) {
-    return (
-      <div className="min-h-screen bg-parchment flex items-center justify-center p-4">
-        <div className="max-w-md w-full">
-          <div className="bg-white rounded-lg shadow-lg p-8">
-            <div className="text-center">
-              <div className="mb-8">
-                <h1 className="text-3xl font-bold text-leaf-800 mb-2">Sown</h1>
-                <p className="text-red-600">Invalid or expired reset link</p>
-                <p className="text-gray-600 mt-2">Please request a new password reset.</p>
-                <button
-                  onClick={() => navigate('/auth')}
-                  className="mt-4 w-full bg-leaf-600 text-white py-3 px-4 rounded-lg font-semibold hover:bg-leaf-700 transition-colors"
-                >
-                  Back to Sign In
-                </button>
-              </div>
-            </div>
-          </div>
-        </div>
+        <p className="font-serif text-sage text-xl tracking-widest">Sown</p>
+        <p className="text-moss text-xs tracking-widest">Verifying your reset link…</p>
+        <button
+          onClick={() => navigate('/auth')}
+          className="mt-4 text-moss text-xs underline underline-offset-2"
+        >
+          Back to sign in
+        </button>
       </div>
     )
   }
 
   return (
-    <div className="min-h-screen bg-parchment flex items-center justify-center p-4">
-      <div className="max-w-md w-full">
-        <div className="bg-white rounded-lg shadow-lg p-8">
-          <div className="text-center">
-            <div className="mb-8">
-              <h1 className="text-3xl font-bold text-leaf-800 mb-2">Sown</h1>
-              <p className="text-gray-600">Set your new password</p>
-            </div>
+    <div className="min-h-screen bg-fern flex flex-col">
+      <div className="flex flex-col items-center justify-center pt-14 pb-8 px-6">
+        <svg width="36" height="48" viewBox="0 0 36 48">
+          <ellipse cx="18" cy="13" rx="11" ry="13" fill="#D4DCCA"/>
+          <ellipse cx="18" cy="35" rx="11" ry="13" fill="#D4DCCA" transform="rotate(180 18 35)"/>
+        </svg>
+        <h1 className="font-serif text-sage text-4xl tracking-widest mt-4 mb-1">Sown</h1>
+        <div className="w-8 h-px bg-clay mb-3" />
+        <p className="text-moss text-xs tracking-widest uppercase">Set your new password</p>
+      </div>
 
-            {error && (
-              <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-lg">
-                <p className="text-red-600 text-sm">{error}</p>
-              </div>
-            )}
-
-            {success && (
-              <div className="mb-4 p-3 bg-green-50 border border-green-200 rounded-lg">
-                <p className="text-green-600 text-sm">Password reset successfully! Redirecting to sign in...</p>
-              </div>
-            )}
-
-            <form onSubmit={handleSubmit} className="space-y-4">
-              <div>
-                <label htmlFor="password" className="block text-sm font-medium text-gray-700 mb-2">
-                  New Password
-                </label>
-                <input
-                  id="password"
-                  type="password"
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-leaf-500 focus:border-transparent"
-                  placeholder="Enter your new password"
-                  disabled={loading}
-                />
-              </div>
-
-              <div>
-                <label htmlFor="confirmPassword" className="block text-sm font-medium text-gray-700 mb-2">
-                  Confirm New Password
-                </label>
-                <input
-                  id="confirmPassword"
-                  type="password"
-                  value={confirmPassword}
-                  onChange={(e) => setConfirmPassword(e.target.value)}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-leaf-500 focus:border-transparent"
-                  placeholder="Confirm your new password"
-                  disabled={loading}
-                />
-              </div>
-
-              <button
-                type="submit"
-                disabled={loading}
-                className="w-full bg-leaf-600 text-white py-3 px-4 rounded-lg font-semibold hover:bg-leaf-700 transition-colors disabled:bg-gray-400 disabled:cursor-not-allowed"
-              >
-                {loading ? 'Resetting Password...' : 'Reset Password'}
-              </button>
-            </form>
-
-            <div className="mt-6 text-center">
-              <button
-                onClick={() => navigate('/auth')}
-                className="text-leaf-600 hover:text-leaf-800 text-sm font-medium transition-colors"
-              >
-                Back to Sign In
-              </button>
+      <div className="flex-1 bg-parchment rounded-t-3xl px-6 pt-6 pb-10">
+        {success ? (
+          <div className="flex flex-col gap-4">
+            <div className="bg-leaf rounded-xl px-4 py-3">
+              <p className="text-sm text-fern leading-relaxed">
+                Password updated! Redirecting you to sign in…
+              </p>
             </div>
           </div>
-        </div>
+        ) : (
+          <form onSubmit={handleSubmit} className="flex flex-col gap-4">
+            {error && (
+              <div className="bg-clay/10 border border-clay/40 rounded-xl px-4 py-3 text-sm text-clay">
+                {error}
+              </div>
+            )}
+
+            <div className="flex flex-col gap-1.5">
+              <label className="text-xs text-subtle uppercase tracking-widest font-medium">
+                New password
+              </label>
+              <input
+                type="password"
+                value={password}
+                onChange={e => setPassword(e.target.value)}
+                placeholder="At least 8 characters"
+                autoComplete="new-password"
+                className="w-full bg-white border border-moss/40 rounded-xl px-4 py-3 text-sm text-dark placeholder:text-subtle/50 focus:outline-none focus:border-fern transition-colors"
+              />
+            </div>
+
+            <div className="flex flex-col gap-1.5">
+              <label className="text-xs text-subtle uppercase tracking-widest font-medium">
+                Confirm password
+              </label>
+              <input
+                type="password"
+                value={confirmPassword}
+                onChange={e => setConfirmPassword(e.target.value)}
+                placeholder="Repeat your new password"
+                autoComplete="new-password"
+                className="w-full bg-white border border-moss/40 rounded-xl px-4 py-3 text-sm text-dark placeholder:text-subtle/50 focus:outline-none focus:border-fern transition-colors"
+              />
+            </div>
+
+            <button
+              type="submit"
+              disabled={loading}
+              className="w-full bg-fern text-sage font-medium py-4 rounded-xl tracking-wide text-sm mt-1 disabled:opacity-50 active:opacity-80 transition-opacity"
+            >
+              {loading ? 'Saving…' : 'Set new password'}
+            </button>
+
+            <button
+              type="button"
+              onClick={() => navigate('/auth')}
+              className="text-subtle text-xs text-center underline underline-offset-2"
+            >
+              Back to sign in
+            </button>
+          </form>
+        )}
       </div>
     </div>
   )
