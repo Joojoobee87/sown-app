@@ -73,12 +73,12 @@ function PlantProfileCard({ result, onSave, onDismiss, saving }) {
   const { plant, probability } = result
 
   const facts = [
-    { label: 'Sun',    value: plant.sun_requirements },
-    { label: 'Aspect', value: plant.aspect },
-    { label: 'Height', value: plant.height },
-    { label: 'Soil',   value: plant.soil_type },
-    { label: 'Season', value: plant.flowering_season },
-    { label: 'Growth', value: plant.growth_rate },
+    { label: 'Sun',      value: plant.sun_requirements },
+    { label: 'Soil',     value: plant.soil_type },
+    { label: 'Aspect',   value: plant.aspect },
+    { label: 'Height',   value: plant.height },
+    { label: 'Season',   value: plant.flowering_season },
+    { label: 'Frost',    value: plant.frost_hardiness },
   ].filter(f => f.value)
 
   return (
@@ -97,52 +97,22 @@ function PlantProfileCard({ result, onSave, onDismiss, saving }) {
           <div className="w-10 h-1 bg-moss rounded-full" />
         </div>
 
-        {/* Photo header */}
-        {plant.photo_url ? (
-          <div className="relative mx-3 rounded-xl overflow-hidden h-44 mb-4">
-            <img
-              src={plant.photo_url}
-              alt={plant.common_name}
-              className="w-full h-full object-cover"
-            />
-            <div className="absolute inset-0 bg-gradient-to-t
-                            from-dark/80 via-transparent to-transparent" />
-            <div className="absolute bottom-0 left-0 right-0 p-4">
-              <p className="font-serif text-parchment text-lg leading-tight">
-                {plant.common_name}
-              </p>
-              <p className="text-xs text-moss italic mt-0.5">
-                {plant.latin_name}
-              </p>
-            </div>
-            {/* Confidence badge */}
-            <div className="absolute top-3 right-3 bg-fern/90 text-sage
-                            text-xs px-2 py-1 rounded-full">
-              {Math.round(probability * 100)}% match
-            </div>
-            {/* Photo label */}
-            <div className="absolute top-3 left-3 bg-dark/50 text-parchment
-                            text-[10px] px-2 py-1 rounded-full">
-              photo
-            </div>
+        {/* Header */}
+        <div className="mx-3 bg-fern rounded-xl p-4 mb-4 flex items-center gap-3">
+          <div className="w-12 h-12 bg-dark/30 rounded-lg flex items-center
+                          justify-center flex-shrink-0">
+            <SeedMark size={28} color="#D4DCCA" />
           </div>
-        ) : (
-          <div className="mx-3 bg-fern rounded-xl p-4 mb-4
-                          flex items-center gap-3">
-            <div className="w-12 h-12 bg-dark/30 rounded-lg flex items-center
-                            justify-center flex-shrink-0">
-              <SeedMark size={28} color="#D4DCCA" />
-            </div>
-            <div>
-              <p className="font-serif text-sage text-base leading-tight">
-                {plant.common_name}
-              </p>
-              <p className="text-xs text-moss italic mt-0.5">
-                {plant.latin_name}
-              </p>
-            </div>
+          <div className="flex-1 min-w-0">
+            <p className="font-serif text-sage text-base leading-tight">
+              {plant.common_name}
+            </p>
+            <p className="text-xs text-moss italic mt-0.5">{plant.latin_name}</p>
           </div>
-        )}
+          <div className="bg-dark/20 text-sage text-[10px] px-2 py-1 rounded-full flex-shrink-0">
+            {plant.source === 'label' ? 'label read' : `${Math.round(probability * 100)}% match`}
+          </div>
+        </div>
 
         <div className="px-4 pb-6 flex flex-col gap-3">
 
@@ -151,8 +121,7 @@ function PlantProfileCard({ result, onSave, onDismiss, saving }) {
             <div className="grid grid-cols-2 gap-2">
               {facts.map(({ label, value }) => (
                 <div key={label} className="bg-leaf rounded-lg px-3 py-2">
-                  <p className="text-[10px] text-subtle uppercase
-                                tracking-widest mb-0.5">
+                  <p className="text-[10px] text-subtle uppercase tracking-widest mb-0.5">
                     {label}
                   </p>
                   <p className="text-sm text-dark font-medium">{value}</p>
@@ -161,43 +130,75 @@ function PlantProfileCard({ result, onSave, onDismiss, saving }) {
             </div>
           )}
 
-          {/* Care note */}
+          {/* Watering */}
+          {plant.watering && (
+            <div className="bg-white border border-moss/40 rounded-xl px-4 py-3">
+              <p className="text-xs font-medium text-fern mb-1 tracking-wide uppercase">
+                Watering
+              </p>
+              <p className="text-sm text-muted leading-relaxed">{plant.watering}</p>
+            </div>
+          )}
+
+          {/* Pruning */}
+          {(plant.pruning_when || plant.pruning_how) && (
+            <div className="bg-white border border-moss/40 rounded-xl px-4 py-3">
+              <p className="text-xs font-medium text-fern mb-1 tracking-wide uppercase">
+                Pruning
+              </p>
+              {plant.pruning_when && (
+                <p className="text-sm text-muted leading-relaxed">
+                  <span className="font-medium text-dark">When: </span>
+                  {plant.pruning_when}
+                </p>
+              )}
+              {plant.pruning_how && (
+                <p className="text-sm text-muted leading-relaxed mt-0.5">
+                  <span className="font-medium text-dark">How: </span>
+                  {plant.pruning_how}
+                </p>
+              )}
+            </div>
+          )}
+
+          {/* Winter care */}
+          {plant.winter_care && (
+            <div className="bg-white border border-moss/40 rounded-xl px-4 py-3">
+              <p className="text-xs font-medium text-fern mb-1 tracking-wide uppercase">
+                Winter care
+              </p>
+              <p className="text-sm text-muted leading-relaxed">{plant.winter_care}</p>
+            </div>
+          )}
+
+          {/* Care notes */}
           {plant.care_notes && (
-            <div className="bg-white border border-moss/40 rounded-xl
-                            px-4 py-3 border-l-2 border-l-fern">
-              <p className="text-xs font-medium text-fern mb-1 tracking-wide">
+            <div className="bg-white border-l-2 border-l-fern border border-moss/40
+                            rounded-xl px-4 py-3">
+              <p className="text-xs font-medium text-fern mb-1 tracking-wide uppercase">
                 Care note
               </p>
-              <p className="text-sm text-muted leading-relaxed">
-                {plant.care_notes}
-              </p>
+              <p className="text-sm text-muted leading-relaxed">{plant.care_notes}</p>
             </div>
           )}
 
           {/* Wildlife value */}
           {plant.wildlife_value && (
-            <div className="bg-white border border-moss/40 rounded-xl
-                            px-4 py-3">
-              <p className="text-xs font-medium text-subtle mb-1
-                            tracking-wide uppercase">
+            <div className="bg-white border border-moss/40 rounded-xl px-4 py-3">
+              <p className="text-xs font-medium text-subtle mb-1 tracking-wide uppercase">
                 Wildlife value
               </p>
-              <p className="text-sm text-muted leading-relaxed">
-                {plant.wildlife_value}
-              </p>
+              <p className="text-sm text-muted leading-relaxed">{plant.wildlife_value}</p>
             </div>
           )}
 
           {/* Toxicity warning */}
           {plant.toxic && (
-            <div className="bg-clay/10 border border-clay/40 rounded-xl
-                            px-4 py-3">
+            <div className="bg-clay/10 border border-clay/40 rounded-xl px-4 py-3">
               <p className="text-xs font-medium text-clay mb-1 tracking-wide">
                 ⚠ Toxicity
               </p>
-              <p className="text-sm text-muted leading-relaxed">
-                {plant.toxic}
-              </p>
+              <p className="text-sm text-muted leading-relaxed">{plant.toxic}</p>
             </div>
           )}
 
@@ -355,7 +356,7 @@ export default function Scan() {
     const base64 = canvas.toDataURL('image/jpeg', 0.85).split(',')[1]
 
     try {
-      const identified = await identifyWithPlantId(base64)
+      const identified = await identifyPlant(base64)
       setResult(identified)
     } catch (err) {
       showToast('Could not identify plant — try again or search by name')
@@ -397,6 +398,7 @@ export default function Scan() {
           sun_requirements:  result.plant.sun_requirements,
           soil_type:         result.plant.soil_type,
           aspect:            result.plant.aspect,
+          flowering_season:  result.plant.flowering_season,
           care_notes:        result.plant.care_notes,
           photo_url:         result.plant.photo_url,
         }, { onConflict: 'latin_name' })
@@ -676,133 +678,28 @@ export default function Scan() {
   )
 }
 
-// ─── Plant.id API integration ─────────────────────────────────────────────────
-// Docs: https://plant.id/
-// Add VITE_PLANTID_KEY to your .env file
-async function identifyWithPlantId(base64Image) {
-  const response = await fetch('https://api.plant.id/v3/identification', {
+// ─── Claude vision via Supabase Edge Function ────────────────────────────────
+async function identifyPlant(base64Image) {
+  const supabaseUrl = import.meta.env.VITE_SUPABASE_URL
+  const supabaseKey = import.meta.env.VITE_SUPABASE_ANON_KEY
+
+  const response = await fetch(`${supabaseUrl}/functions/v1/identify-plant`, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
-      'Api-Key': import.meta.env.VITE_PLANTID_KEY,
+      'Authorization': `Bearer ${supabaseKey}`,
+      'apikey': supabaseKey,
     },
-    body: JSON.stringify({
-      images: [`data:image/jpeg;base64,${base64Image}`],
-      similar_images: false,
-      plant_details: [
-        'common_names',
-        'url',
-        'wiki_description',
-        'taxonomy',
-      ],
-    }),
+    body: JSON.stringify({ image: base64Image }),
   })
 
-  if (!response.ok) throw new Error('Plant.id API error')
-
-  const data = await response.json()
-
-  // Take the top suggestion
-  const top = data.result?.classification?.suggestions?.[0]
-  if (!top) throw new Error('No plant identified')
-
-  // Shape into Sown plant profile format
-  // The Plant.id API returns scientific name — we enrich with our own
-  // care data from Supabase in production. For now returns what we get.
-  const plant = {
-    common_name:      top.details?.common_names?.[0] || top.name,
-    latin_name:       top.name,
-    sun_requirements: null,   // enrich from Supabase plants table
-    soil_type:        null,   // enrich from Supabase plants table
-    aspect:           null,   // enrich from Supabase plants table
-    height:           null,   // enrich from Supabase plants table
-    flowering_season: null,   // enrich from Supabase plants table
-    growth_rate:      null,   // enrich from Supabase plants table
-    care_notes:       top.details?.wiki_description?.value?.slice(0, 200) || null,
-    wildlife_value:   null,
-    toxic:            null,
-    photo_url:        top.similar_images?.[0]?.url || null,
+  if (!response.ok) {
+    const err = await response.json().catch(() => ({}))
+    throw new Error(err.error || 'Could not identify plant')
   }
 
-  return { plant, probability: top.probability }
-}
+  const plant = await response.json()
+  if (plant.error) throw new Error(plant.error)
 
-// ─── Sample plant data (for search fallback) ───────────────────────────────────
-// In production the search hits your Supabase plants table.
-const SAMPLE_PLANTS = [
-  {
-    id: 's1',
-    common_name: "Dahlia 'Bishop of Llandaff'",
-    latin_name:  'Dahlia × hybrida',
-    sun_requirements: 'Full sun',
-    soil_type:   'Well drained',
-    aspect:      'S / SW',
-    height:      '90–120cm',
-    flowering_season: 'July–October',
-    growth_rate: 'Fast',
-    care_notes:  'Lift tubers before first frost. Store in a cool dry place over winter.',
-    wildlife_value: 'Attracts bees and butterflies.',
-    toxic:       null,
-    photo_url:   null,
-  },
-  {
-    id: 's2',
-    common_name: "Rosa 'Gertrude Jekyll'",
-    latin_name:  'Rosa',
-    sun_requirements: 'Full sun',
-    soil_type:   'Fertile, moist',
-    aspect:      'S facing',
-    height:      '120–150cm',
-    flowering_season: 'June–September',
-    growth_rate: 'Moderate',
-    care_notes:  'Feed in May and July. Watch for blackspot and aphids.',
-    wildlife_value: 'Excellent for bees.',
-    toxic:       null,
-    photo_url:   null,
-  },
-  {
-    id: 's3',
-    common_name: 'Lavandula angustifolia',
-    latin_name:  'Lavandula angustifolia',
-    sun_requirements: 'Full sun',
-    soil_type:   'Well drained',
-    aspect:      'S / SE',
-    height:      '40–60cm',
-    flowering_season: 'June–August',
-    growth_rate: 'Slow–moderate',
-    care_notes:  'Light trim after flowering. Do not cut into old wood.',
-    wildlife_value: 'Excellent for bees and butterflies.',
-    toxic:       null,
-    photo_url:   null,
-  },
-  {
-    id: 's4',
-    common_name: 'Hydrangea macrophylla',
-    latin_name:  'Hydrangea macrophylla',
-    sun_requirements: 'Partial shade',
-    soil_type:   'Moist, well drained',
-    aspect:      'E / NE',
-    height:      '100–200cm',
-    flowering_season: 'July–September',
-    growth_rate: 'Moderate',
-    care_notes:  'Prune dead heads in spring. Do not prune hard.',
-    wildlife_value: 'Attracts some pollinators.',
-    toxic:       'Mildly toxic if ingested.',
-    photo_url:   null,
-  },
-  {
-    id: 's5',
-    common_name: 'Allium Purple Sensation',
-    latin_name:  'Allium aflatunense',
-    sun_requirements: 'Full sun',
-    soil_type:   'Well drained',
-    aspect:      'S / SW',
-    height:      '60–80cm',
-    flowering_season: 'May–June',
-    growth_rate: 'Moderate',
-    care_notes:  'Plant bulbs 10cm deep in autumn. Leaves die back before flowering — normal.',
-    wildlife_value: 'Excellent for bees.',
-    toxic:       null,
-    photo_url:   null,
-  },
-]
+  return { plant, probability: plant.confidence === 'high' ? 0.9 : plant.confidence === 'medium' ? 0.7 : 0.5 }
+}
