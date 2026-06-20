@@ -273,12 +273,30 @@ export default function Scan() {
   const [saved, setSaved]         = useState(false)
   const [toast, setToast]         = useState(null)
 
-  // ── Sample recent scans ────────────────────────────────────────────────────
-  // Replace with a Supabase fetch filtered by user_id
-  const recentScans = [
-    { id: 'r1', common_name: 'Hydrangea macrophylla', latin_name: 'Hydrangea macrophylla', daysAgo: 2 },
-    { id: 'r2', common_name: 'Lavandula angustifolia', latin_name: 'Lavandula angustifolia', daysAgo: 5 },
-  ]
+  // ── Recent scans from Supabase ─────────────────────────────────────────────
+  const [recentScans, setRecentScans] = useState([])
+
+  useEffect(() => {
+    const fetchRecent = async () => {
+      const { data: { user } } = await supabase.auth.getUser()
+      if (!user) return
+      const { data } = await supabase
+        .from('user_plants')
+        .select('id, created_at, plants(common_name, latin_name)')
+        .eq('user_id', user.id)
+        .order('created_at', { ascending: false })
+        .limit(5)
+      if (data) {
+        setRecentScans(data.map(row => ({
+          id: row.id,
+          common_name: row.plants?.common_name,
+          latin_name: row.plants?.latin_name,
+          daysAgo: Math.floor((Date.now() - new Date(row.created_at)) / 86400000),
+        })))
+      }
+    }
+    fetchRecent()
+  }, [saved])
 
   // ── Start camera ───────────────────────────────────────────────────────────
   const startCamera = useCallback(async () => {
@@ -346,30 +364,22 @@ export default function Scan() {
     }
   }
 
-  // ── Manual search ──────────────────────────────────────────────────────────
-  // In production this queries your Supabase plants table.
-  // For now it filters the sample data.
+  // ── Manual search — queries Supabase plants table ─────────────────────────
   useEffect(() => {
     if (!search.trim()) { setSearchResults([]); return }
     const timer = setTimeout(async () => {
       setSearching(true)
       try {
-        // Swap this block for a real Supabase query:
-        // const { data } = await supabase
-        //   .from('plants')
-        //   .select('*')
-        //   .ilike('common_name', `%${search}%`)
-        //   .limit(8)
-        // setSearchResults(data || [])
-        const mock = SAMPLE_PLANTS.filter(p =>
-          p.common_name.toLowerCase().includes(search.toLowerCase()) ||
-          (p.latin_name || '').toLowerCase().includes(search.toLowerCase())
-        )
-        setSearchResults(mock)
+        const { data } = await supabase
+          .from('plants')
+          .select('*')
+          .or(`common_name.ilike.%${search}%,latin_name.ilike.%${search}%`)
+          .limit(8)
+        setSearchResults(data || [])
       } finally {
         setSearching(false)
       }
-    }, 350) // debounce
+    }, 350)
     return () => clearTimeout(timer)
   }, [search])
 
