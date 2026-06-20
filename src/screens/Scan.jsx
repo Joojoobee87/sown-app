@@ -274,6 +274,13 @@ export default function Scan() {
   const [saved, setSaved]         = useState(false)
   const [toast, setToast]         = useState(null)
 
+  // ── Zone picker ────────────────────────────────────────────────────────────
+  const [showZonePicker, setShowZonePicker] = useState(false)
+  const [zones, setZones]                   = useState([])
+  const [zonesLoading, setZonesLoading]     = useState(false)
+  const [newZoneName, setNewZoneName]       = useState('')
+  const [addingZone, setAddingZone]         = useState(false)
+
   // ── Recent scans from Supabase ─────────────────────────────────────────────
   const [recentScans, setRecentScans] = useState([])
 
@@ -384,10 +391,34 @@ export default function Scan() {
     return () => clearTimeout(timer)
   }, [search])
 
+  // ── Fetch user's garden zones ──────────────────────────────────────────────
+  const fetchZones = async () => {
+    setZonesLoading(true)
+    try {
+      const { data: { user } } = await supabase.auth.getUser()
+      if (!user) return
+      const { data } = await supabase
+        .from('garden_zones')
+        .select('id, name')
+        .eq('user_id', user.id)
+        .order('created_at', { ascending: true })
+      setZones(data || [])
+    } finally {
+      setZonesLoading(false)
+    }
+  }
+
+  const handleOpenZonePicker = async () => {
+    await fetchZones()
+    setNewZoneName('')
+    setShowZonePicker(true)
+  }
+
   // ── Save to Supabase library ───────────────────────────────────────────────
-  const handleSave = async () => {
+  const handleSave = async (zoneName) => {
     if (!result || saving) return
     setSaving(true)
+    setShowZonePicker(false)
     try {
       // 1. Upsert plant into plants table
       const { data: plantRow, error: plantErr } = await supabase
@@ -414,6 +445,7 @@ export default function Scan() {
         .insert({
           user_id:    user.id,
           plant_id:   plantRow.id,
+          location:   zoneName || null,
           status:     'growing',
           date_added: new Date().toISOString().split('T')[0],
         })
@@ -429,6 +461,27 @@ export default function Scan() {
       showToast('Could not save — please try again')
     } finally {
       setSaving(false)
+    }
+  }
+
+  // ── Create a new zone then save ────────────────────────────────────────────
+  const handleCreateZoneAndSave = async () => {
+    const name = newZoneName.trim()
+    if (!name) return
+    setAddingZone(true)
+    try {
+      const { data: { user } } = await supabase.auth.getUser()
+      const { data: zone, error } = await supabase
+        .from('garden_zones')
+        .insert({ user_id: user.id, name })
+        .select()
+        .single()
+      if (error) throw error
+      await handleSave(zone.name)
+    } catch {
+      showToast('Could not create zone — please try again')
+    } finally {
+      setAddingZone(false)
     }
   }
 
@@ -658,10 +711,103 @@ export default function Scan() {
       {result && (
         <PlantProfileCard
           result={result}
-          onSave={handleSave}
+          onSave={handleOpenZonePicker}
           onDismiss={() => setResult(null)}
           saving={saving}
         />
+      )}
+
+      {/* Zone picker sheet */}
+      {showZonePicker && (
+        <>
+          <div
+            className="fixed inset-0 bg-dark/50 z-[60]"
+            onClick={() => setShowZonePicker(false)}
+          />
+          <div className="fixed bottom-0 left-0 right-0 max-w-md mx-auto
+                          bg-parchment rounded-t-2xl z-[70] pb-safe">
+
+            {/* Handle */}
+            <div className="flex justify-center pt-3 pb-1">
+              <div className="w-10 h-1 bg-moss rounded-full" />
+            </div>
+
+            <div className="px-4 pb-8 pt-2">
+              <h2 className="font-serif text-dark text-lg mb-1">
+                Choose a garden zone
+              </h2>
+              <p className="text-sm text-subtle mb-4">
+                Where will this plant live?
+              </p>
+
+              {zonesLoading ? (
+                <div className="flex justify-center py-6">
+                  <div className="w-6 h-6 border-2 border-moss/30
+                                  border-t-moss rounded-full animate-spin" />
+                </div>
+              ) : (
+                <div className="flex flex-col gap-2 max-h-52 overflow-y-auto mb-4">
+                  {zones.map(zone => (
+                    <button
+                      key={zone.id}
+                      onClick={() => handleSave(zone.name)}
+                      disabled={saving}
+                      className="w-full bg-white border border-moss/40
+                                 rounded-xl px-4 py-3 text-left text-sm
+                                 text-dark font-medium
+                                 active:bg-leaf transition-colors
+                                 disabled:opacity-50"
+                    >
+                      {zone.name}
+                    </button>
+                  ))}
+
+                  {zones.length === 0 && (
+                    <p className="text-sm text-subtle text-center py-3">
+                      No zones yet — create your first one below
+                    </p>
+                  )}
+                </div>
+              )}
+
+              {/* New zone input */}
+              <div className="flex gap-2">
+                <input
+                  type="text"
+                  placeholder="New zone name…"
+                  value={newZoneName}
+                  onChange={e => setNewZoneName(e.target.value)}
+                  onKeyDown={e => e.key === 'Enter' && handleCreateZoneAndSave()}
+                  className="flex-1 bg-white border border-moss/40 rounded-xl
+                             px-3 py-2.5 text-sm text-dark
+                             placeholder:text-subtle/60
+                             focus:outline-none focus:border-fern
+                             transition-colors"
+                />
+                <button
+                  onClick={handleCreateZoneAndSave}
+                  disabled={!newZoneName.trim() || addingZone || saving}
+                  className="bg-fern text-sage text-sm font-medium
+                             px-4 py-2.5 rounded-xl
+                             disabled:opacity-40
+                             active:opacity-80 transition-opacity"
+                >
+                  {addingZone ? '...' : 'Add'}
+                </button>
+              </div>
+
+              {/* Skip option */}
+              <button
+                onClick={() => handleSave(null)}
+                disabled={saving}
+                className="w-full text-center text-sm text-subtle mt-4
+                           underline underline-offset-2 disabled:opacity-40"
+              >
+                Save without a zone
+              </button>
+            </div>
+          </div>
+        </>
       )}
 
       {/* Toast notification */}

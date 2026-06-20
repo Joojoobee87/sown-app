@@ -2,8 +2,9 @@
 // Sown App — My Garden Library screen
 // Paste this file into src/screens/Library.jsx
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
+import { supabase } from '../lib/supabase'
 import TopBar from '../components/TopBar'
 
 // ─── Seed S icon (matches TopBar / brand mark) ───────────────────────────────
@@ -277,19 +278,56 @@ export default function Library() {
   const [search, setSearch]         = useState('')
   const [activeFilter, setFilter]   = useState('All')
   const [selectedPlant, setPlant]   = useState(null)
+  const [plants, setPlants]         = useState([])
+  const [loading, setLoading]       = useState(true)
 
-  // ── Sample data ─────────────────────────────────────────────────────────────
-  // Replace this with a real Supabase fetch when auth is set up.
-  // Pattern: useEffect(() => { fetchFromSupabase() }, [])
-  const plants = SAMPLE_PLANTS
+  // ── Fetch from Supabase ─────────────────────────────────────────────────────
+  useEffect(() => {
+    const fetchPlants = async () => {
+      setLoading(true)
+      try {
+        const { data: { user } } = await supabase.auth.getUser()
+        if (!user) return
+        const { data } = await supabase
+          .from('user_plants')
+          .select(`
+            id, location, personal_notes, date_added, status,
+            plants (
+              common_name, latin_name,
+              sun_requirements, soil_type, aspect, care_notes
+            )
+          `)
+          .eq('user_id', user.id)
+          .order('date_added', { ascending: false })
+        if (data) {
+          setPlants(data.map(row => ({
+            id:              row.id,
+            location:        row.location,
+            personal_notes:  row.personal_notes,
+            date_added:      row.date_added,
+            status:          row.status,
+            common_name:     row.plants?.common_name,
+            latin_name:      row.plants?.latin_name,
+            sun_requirements: row.plants?.sun_requirements,
+            soil_type:       row.plants?.soil_type,
+            aspect:          row.plants?.aspect,
+            care_notes:      row.plants?.care_notes,
+          })))
+        }
+      } finally {
+        setLoading(false)
+      }
+    }
+    fetchPlants()
+  }, [])
 
-  // ── Location filters ────────────────────────────────────────────────────────
+  // ── Zone filters ─────────────────────────────────────────────────────────────
   const locations = ['All', ...new Set(plants.map(p => p.location).filter(Boolean))]
 
   // ── Filtered list ───────────────────────────────────────────────────────────
   const filtered = plants.filter(p => {
     const matchesSearch =
-      p.common_name.toLowerCase().includes(search.toLowerCase()) ||
+      (p.common_name || '').toLowerCase().includes(search.toLowerCase()) ||
       (p.latin_name || '').toLowerCase().includes(search.toLowerCase())
     const matchesFilter =
       activeFilter === 'All' || p.location === activeFilter
@@ -370,7 +408,12 @@ export default function Library() {
 
         {/* Plant list */}
         <div className="px-4 flex flex-col gap-2 flex-1">
-          {filtered.length === 0
+          {loading ? (
+            <div className="flex justify-center py-16">
+              <div className="w-8 h-8 border-2 border-moss/30
+                              border-t-fern rounded-full animate-spin" />
+            </div>
+          ) : filtered.length === 0
             ? <EmptyState filter={activeFilter} onScan={() => navigate('/scan')} />
             : filtered.map(plant => (
                 <PlantCard
@@ -417,73 +460,3 @@ function formatDate(dateStr) {
   return d.toLocaleDateString('en-GB', { month: 'short', year: 'numeric' })
 }
 
-// ─── Sample data ──────────────────────────────────────────────────────────────
-// Remove this and replace with a Supabase fetch once auth is wired up.
-// See the comment in the Library component above.
-const SAMPLE_PLANTS = [
-  {
-    id: '1',
-    common_name: "Dahlia 'Bishop of Llandaff'",
-    latin_name: 'Dahlia × hybrida',
-    location: 'Front garden',
-    status: 'growing',
-    date_added: '2026-04-10',
-    sun_requirements: 'Full sun',
-    soil_type: 'Well drained',
-    aspect: 'S / SW',
-    care_notes: 'Lift tubers before first frost. Store in a cool dry place over winter.',
-    personal_notes: 'Planted along the south fence — gorgeous deep red.',
-  },
-  {
-    id: '2',
-    common_name: "Rosa 'Gertrude Jekyll'",
-    latin_name: 'Rosa',
-    location: 'Patio',
-    status: 'growing',
-    date_added: '2026-03-15',
-    sun_requirements: 'Full sun',
-    soil_type: 'Fertile, moist',
-    aspect: 'S facing',
-    care_notes: 'Feed with rose fertiliser in May and July. Watch for blackspot.',
-    personal_notes: null,
-  },
-  {
-    id: '3',
-    common_name: 'Lavandula angustifolia',
-    latin_name: 'Lavandula angustifolia',
-    location: 'Front garden',
-    status: 'growing',
-    date_added: '2026-03-20',
-    sun_requirements: 'Full sun',
-    soil_type: 'Well drained',
-    aspect: 'S / SE',
-    care_notes: 'Light trim after flowering. Do not cut into old wood.',
-    personal_notes: 'Three plants along the path edge.',
-  },
-  {
-    id: '4',
-    common_name: 'Hydrangea macrophylla',
-    latin_name: 'Hydrangea macrophylla',
-    location: 'Back garden',
-    status: 'dormant',
-    date_added: '2025-09-05',
-    sun_requirements: 'Partial shade',
-    soil_type: 'Moist, well drained',
-    aspect: 'E / NE',
-    care_notes: 'Prune dead heads in spring. Do not prune hard.',
-    personal_notes: null,
-  },
-  {
-    id: '5',
-    common_name: 'Allium Purple Sensation',
-    latin_name: 'Allium aflatunense',
-    location: 'Front garden',
-    status: 'dormant',
-    date_added: '2025-10-12',
-    sun_requirements: 'Full sun',
-    soil_type: 'Well drained',
-    aspect: 'S / SW',
-    care_notes: 'Bulbs planted 10cm deep, 15cm apart. Flowers May–June.',
-    personal_notes: 'Stored in hessian bulb bag in garage.',
-  },
-]
