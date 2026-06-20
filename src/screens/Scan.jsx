@@ -18,29 +18,7 @@ import { useState, useRef, useEffect, useCallback } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { supabase } from '../lib/supabase'
 import TopBar from '../components/TopBar'
-
-// ─── Seed S mark (reused from other screens) ─────────────────────────────────
-function SeedMark({ size = 16, color = '#4A5940' }) {
-  const h = size
-  const w = size * 0.75
-  const rx = w * 0.45
-  const ry1 = h * 0.3
-  const cy1 = h * 0.28
-  const cy2 = h * 0.72
-  return (
-    <svg width={w} height={h} viewBox={`0 0 ${w} ${h}`} aria-hidden="true">
-      <ellipse cx={w / 2} cy={cy1} rx={rx} ry={ry1} fill={color} />
-      <line x1={w * 0.25} y1={h * 0.1} x2={w * 0.55} y2={h * 0.35}
-        stroke={color === '#4A5940' ? '#D4DCCA' : '#4A5940'}
-        strokeWidth="0.7" strokeLinecap="round" opacity="0.45" />
-      <ellipse cx={w / 2} cy={cy2} rx={rx} ry={ry1} fill={color}
-        transform={`rotate(180 ${w / 2} ${cy2})`} />
-      <line x1={w * 0.35} y1={h * 0.62} x2={w * 0.65} y2={h * 0.87}
-        stroke={color === '#4A5940' ? '#D4DCCA' : '#4A5940'}
-        strokeWidth="0.7" strokeLinecap="round" opacity="0.45" />
-    </svg>
-  )
-}
+import SownIcon from '../components/SownIcon'
 
 // ─── Scanning animation overlay ───────────────────────────────────────────────
 function ScanOverlay() {
@@ -101,7 +79,7 @@ function PlantProfileCard({ result, onSave, onDismiss, saving }) {
         <div className="mx-3 bg-fern rounded-xl p-4 mb-4 flex items-center gap-3">
           <div className="w-12 h-12 bg-dark/30 rounded-lg flex items-center
                           justify-center flex-shrink-0">
-            <SeedMark size={28} color="#D4DCCA" />
+            <SownIcon size={28} fill="#D4DCCA" />
           </div>
           <div className="flex-1 min-w-0">
             <p className="font-serif text-sage text-base leading-tight">
@@ -497,7 +475,7 @@ export default function Scan() {
 
       {/* TopBar — dark variant for scan screen */}
       <header className="bg-fern px-4 py-3 flex items-center justify-between">
-        <SeedMark size={30} color="#D4DCCA" />
+        <SownIcon size={30} fill="#D4DCCA" />
         <h1 className="font-serif text-sage text-2xl tracking-widest">Sown</h1>
         <div className="w-6" />
       </header>

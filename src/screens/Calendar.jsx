@@ -17,6 +17,7 @@
 import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import TopBar from '../components/TopBar'
+import SownIcon from '../components/SownIcon'
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 const MONTHS = [
@@ -33,26 +34,6 @@ const SHORT_MONTHS = [
 const DEFAULT_LAT = 53.8008
 const DEFAULT_LON = -1.5491
 const DEFAULT_LOCATION = 'Leeds'
-
-// ─── Seed S mark ─────────────────────────────────────────────────────────────
-function SeedMark({ size = 16, color = '#4A5940' }) {
-  const h = size, w = size * 0.75
-  const rx = w * 0.45, ry1 = h * 0.3
-  const cy1 = h * 0.28, cy2 = h * 0.72
-  return (
-    <svg width={w} height={h} viewBox={`0 0 ${w} ${h}`} aria-hidden="true">
-      <ellipse cx={w/2} cy={cy1} rx={rx} ry={ry1} fill={color}/>
-      <line x1={w*0.25} y1={h*0.1} x2={w*0.55} y2={h*0.35}
-        stroke={color==='#4A5940'?'#D4DCCA':'#4A5940'}
-        strokeWidth="0.7" strokeLinecap="round" opacity="0.45"/>
-      <ellipse cx={w/2} cy={cy2} rx={rx} ry={ry1} fill={color}
-        transform={`rotate(180 ${w/2} ${cy2})`}/>
-      <line x1={w*0.35} y1={h*0.62} x2={w*0.65} y2={h*0.87}
-        stroke={color==='#4A5940'?'#D4DCCA':'#4A5940'}
-        strokeWidth="0.7" strokeLinecap="round" opacity="0.45"/>
-    </svg>
-  )
-}
 
 // ─── Botanical thumbnail ──────────────────────────────────────────────────────
 function BotanicalThumb({ name = '', color = '#4A5940', size = 32 }) {
@@ -294,7 +275,7 @@ function EmptyMonth({ month, onScan }) {
                     py-14 px-6 text-center gap-4">
       <div className="w-16 h-16 bg-leaf rounded-full flex items-center
                       justify-center">
-        <SeedMark size={32} color="#4A5940" />
+        <SownIcon size={32} fill="#44593b" />
       </div>
       <div>
         <p className="font-serif text-dark text-lg mb-1">
@@ -329,7 +310,7 @@ function UpgradeSheet({ onClose }) {
         <div className="px-5 pb-8 flex flex-col gap-4">
           <div className="bg-fern rounded-xl p-4 text-center">
             <div className="flex justify-center mb-3">
-              <SeedMark size={40} color="#D4DCCA"/>
+              <SownIcon size={40} fill="#D4DCCA"/>
             </div>
             <p className="font-serif text-sage text-xl mb-1">Sown Pro</p>
             <p className="text-moss text-sm">£2.99/month or £19.99/year</p>

@@ -6,33 +6,7 @@ import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { supabase } from '../lib/supabase'
 import TopBar from '../components/TopBar'
-
-// ─── Seed S icon (matches TopBar / brand mark) ───────────────────────────────
-function SeedMark({ size = 16, color = '#4A5940' }) {
-  const h = size
-  const w = size * 0.75
-  const rx = w * 0.45
-  const ry1 = h * 0.3
-  const cy1 = h * 0.28
-  const cy2 = h * 0.72
-  return (
-    <svg width={w} height={h} viewBox={`0 0 ${w} ${h}`} aria-hidden="true">
-      <ellipse cx={w / 2} cy={cy1} rx={rx} ry={ry1} fill={color} />
-      <line
-        x1={w * 0.25} y1={h * 0.1} x2={w * 0.55} y2={h * 0.35}
-        stroke={color === '#4A5940' ? '#D4DCCA' : '#4A5940'}
-        strokeWidth="0.7" strokeLinecap="round" opacity="0.45"
-      />
-      <ellipse cx={w / 2} cy={cy2} rx={rx} ry={ry1} fill={color}
-        transform={`rotate(180 ${w / 2} ${cy2})`} />
-      <line
-        x1={w * 0.35} y1={h * 0.62} x2={w * 0.65} y2={h * 0.87}
-        stroke={color === '#4A5940' ? '#D4DCCA' : '#4A5940'}
-        strokeWidth="0.7" strokeLinecap="round" opacity="0.45"
-      />
-    </svg>
-  )
-}
+import SownIcon from '../components/SownIcon'
 
 // ─── Botanical illustration placeholder ──────────────────────────────────────
 // In production this would load from your Supabase illustrations bucket.
@@ -140,7 +114,7 @@ function EmptyState({ filter, onScan }) {
                     py-16 px-6 text-center gap-4">
       <div className="w-16 h-16 bg-leaf rounded-full flex items-center
                       justify-center">
-        <SeedMark size={32} color="#4A5940" />
+        <SownIcon size={32} fill="#44593b" />
       </div>
       <div>
         <p className="font-serif text-dark text-lg mb-1">
