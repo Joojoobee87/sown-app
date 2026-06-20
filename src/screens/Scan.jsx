@@ -114,7 +114,7 @@ function PlantProfileCard({ result, onSave, onDismiss, saving }) {
           </div>
         </div>
 
-        <div className="px-4 pb-6 flex flex-col gap-3">
+        <div className="px-4 pb-24 flex flex-col gap-3">
 
           {/* Key facts grid */}
           {facts.length > 0 && (
