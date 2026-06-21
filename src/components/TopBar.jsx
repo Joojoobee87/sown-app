@@ -2,10 +2,9 @@ import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext'
 import SownIcon from './SownIcon'
-import logoPrimary from '../assets/logo-primary.svg'
 
 // ─── Hamburger icon ───────────────────────────────────────────────────────────
-function BurgerIcon({ size = 22, stroke = 'currentColor' }) {
+function BurgerIcon({ size = 24, stroke = 'currentColor' }) {
   return (
     <svg width={size} height={size} viewBox="0 0 24 24" fill="none">
       <line x1="3" y1="6"  x2="21" y2="6"  stroke={stroke} strokeWidth="1.8" strokeLinecap="round"/>
@@ -183,28 +182,15 @@ function MenuDrawer({ onClose }) {
 }
 
 // ─── Top bar ──────────────────────────────────────────────────────────────────
-export default function TopBar({ right }) {
+export default function TopBar() {
   const [menuOpen, setMenuOpen] = useState(false)
+  const navigate = useNavigate()
 
   return (
     <>
-      <header className="bg-fern px-4 py-4 flex items-center justify-between">
-        {/* Burger menu */}
-        <button
-          onClick={() => setMenuOpen(true)}
-          className="text-sage/80 active:text-sage transition-colors p-1 flex-shrink-0"
-          aria-label="Open menu"
-        >
-          <BurgerIcon />
-        </button>
-
-        {/* Designer logo — filter converts dark green paths to white */}
-        <img
-          src={logoPrimary}
-          alt="Sown Garden and Home"
-          className="h-20"
-          style={{ filter: 'brightness(0) invert(1)', opacity: 0.92 }}
-        />
+      {/* Fixed header */}
+      <header className="fixed top-0 left-0 right-0 max-w-md mx-auto z-40
+                         bg-fern px-5 py-4 flex items-center justify-between">
 
         {/* S-mark icon — taps to go home */}
         <button
@@ -212,9 +198,31 @@ export default function TopBar({ right }) {
           aria-label="Home"
           className="active:opacity-60 transition-opacity flex-shrink-0"
         >
-          <SownIcon size={38} fill="#D4DCCA" />
+          <SownIcon size={44} fill="#D4DCCA" />
+        </button>
+
+        {/* Text wordmark */}
+        <div className="flex flex-col items-center">
+          <span className="font-serif text-sage text-2xl leading-none tracking-wide">
+            SOWN
+          </span>
+          <span className="text-sage/70 text-[10px] tracking-[0.2em] uppercase mt-1">
+            Garden and Home
+          </span>
+        </div>
+
+        {/* Burger menu */}
+        <button
+          onClick={() => setMenuOpen(true)}
+          className="text-sage/80 active:text-sage transition-colors p-1 flex-shrink-0"
+          aria-label="Open menu"
+        >
+          <BurgerIcon size={24} />
         </button>
       </header>
+
+      {/* Spacer so page content clears the fixed header */}
+      <div className="h-[76px] flex-shrink-0" />
 
       {menuOpen && <MenuDrawer onClose={() => setMenuOpen(false)} />}
     </>

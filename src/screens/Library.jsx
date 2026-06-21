@@ -161,10 +161,15 @@ function PlantDetailSheet({ plant, onClose }) {
       />
       {/* Sheet */}
       <div className="fixed bottom-0 left-0 right-0 max-w-md mx-auto
-                      bg-parchment rounded-t-2xl z-50 pb-safe">
+                      bg-parchment rounded-t-2xl z-50 max-h-[85vh]
+                      overflow-y-auto">
 
-        {/* Handle */}
-        <div className="flex justify-center pt-3 pb-1">
+        {/* Handle — tap to dismiss */}
+        <div
+          className="flex justify-center pt-3 pb-1 sticky top-0
+                     bg-parchment z-10 cursor-pointer"
+          onClick={onClose}
+        >
           <div className="w-10 h-1 bg-moss rounded-full" />
         </div>
 
@@ -262,6 +267,16 @@ export default function Library() {
   const [selectedPlant, setPlant]   = useState(null)
   const [plants, setPlants]         = useState([])
   const [loading, setLoading]       = useState(true)
+
+  // ── Lock body scroll when detail sheet is open ─────────────────────────────
+  useEffect(() => {
+    if (selectedPlant) {
+      document.body.style.overflow = 'hidden'
+    } else {
+      document.body.style.overflow = ''
+    }
+    return () => { document.body.style.overflow = '' }
+  }, [selectedPlant])
 
   // ── Fetch from Supabase ─────────────────────────────────────────────────────
   useEffect(() => {

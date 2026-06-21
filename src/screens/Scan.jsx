@@ -97,9 +97,12 @@ function PlantProfileCard({ result, onSave, onDismiss, saving }) {
                       bg-parchment rounded-t-2xl z-50 max-h-[85vh]
                       overflow-y-auto">
 
-        {/* Handle */}
-        <div className="flex justify-center pt-3 pb-2 sticky top-0
-                        bg-parchment z-10">
+        {/* Handle — tap to dismiss */}
+        <div
+          className="flex justify-center pt-3 pb-2 sticky top-0
+                     bg-parchment z-10 cursor-pointer"
+          onClick={onDismiss}
+        >
           <div className="w-10 h-1 bg-moss rounded-full" />
         </div>
 
@@ -305,6 +308,16 @@ export default function Scan() {
   const [zonesLoading, setZonesLoading]     = useState(false)
   const [newZoneName, setNewZoneName]       = useState('')
   const [addingZone, setAddingZone]         = useState(false)
+
+  // ── Lock body scroll when a modal sheet is open ────────────────────────────
+  useEffect(() => {
+    if (result || showZonePicker) {
+      document.body.style.overflow = 'hidden'
+    } else {
+      document.body.style.overflow = ''
+    }
+    return () => { document.body.style.overflow = '' }
+  }, [result, showZonePicker])
 
   // ── Recent scans from Supabase ─────────────────────────────────────────────
   const [recentScans, setRecentScans] = useState([])
