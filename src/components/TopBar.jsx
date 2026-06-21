@@ -104,7 +104,7 @@ function MenuDrawer({ onClose }) {
           </button>
 
           <button
-            onClick={onClose}
+            onClick={() => go('/about')}
             className="w-full text-left px-4 py-3 rounded-xl text-sm text-dark
                        font-medium active:bg-leaf transition-colors
                        flex items-center gap-3"

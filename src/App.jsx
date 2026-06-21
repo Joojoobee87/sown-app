@@ -10,6 +10,7 @@ import Calendar from './screens/Calendar'
 import PlantProfile from './screens/PlantProfile'
 import NavBar from './components/NavBar'
 import PasswordReset from './screens/PasswordReset'
+import About from './screens/About'
 
 export default function App() {
   return (
@@ -36,6 +37,9 @@ export default function App() {
             }/>
             <Route path="/plant/:id" element={
               <ProtectedRoute><PlantProfile /></ProtectedRoute>
+            }/>
+            <Route path="/about" element={
+              <ProtectedRoute><About /></ProtectedRoute>
             }/>
           </Routes>
           <NavBar />
