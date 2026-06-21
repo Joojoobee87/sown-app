@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import SownIcon from './SownIcon'
 import { useAuth } from '../context/AuthContext'
+import logoPrimary from '../assets/logo-primary.svg'
 
 // ─── Hamburger icon ───────────────────────────────────────────────────────────
 function BurgerIcon({ size = 22, stroke = 'currentColor' }) {
@@ -186,21 +186,19 @@ export default function TopBar({ right }) {
   return (
     <>
       <header className="bg-fern px-4 py-3 flex items-center justify-between">
-        {/* Brand icon — larger so the S-mark reads clearly */}
-        <SownIcon size={44} fill="#D4DCCA" />
+        {/* Balance spacer matches burger width */}
+        <div className="w-9" />
 
-        {/* Wordmark */}
-        <div className="flex flex-col items-center">
-          <h1 className="font-serif text-sage text-2xl tracking-widest leading-none">
-            Sown
-          </h1>
-          <p className="text-moss text-[9px] tracking-[0.25em] uppercase mt-0.5">
-            Garden and Home
-          </p>
-        </div>
+        {/* Designer logo — filter converts dark green paths to white */}
+        <img
+          src={logoPrimary}
+          alt="Sown Garden and Home"
+          className="h-12"
+          style={{ filter: 'brightness(0) invert(1)', opacity: 0.92 }}
+        />
 
         {/* Right slot: custom override or burger */}
-        <div className="w-11 flex justify-end">
+        <div className="w-9 flex justify-end">
           {right || (
             <button
               onClick={() => setMenuOpen(true)}
