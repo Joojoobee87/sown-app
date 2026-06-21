@@ -20,6 +20,33 @@ import { supabase } from '../lib/supabase'
 import TopBar from '../components/TopBar'
 import SownIcon from '../components/SownIcon'
 
+// ─── Scan icon — corner-bracket viewfinder with a small leaf centre ──────────
+function ScanIcon({ size = 20, stroke = 'currentColor' }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none">
+      <path d="M3 8V5a2 2 0 012-2h3" stroke={stroke} strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"/>
+      <path d="M16 3h3a2 2 0 012 2v3" stroke={stroke} strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"/>
+      <path d="M21 16v3a2 2 0 01-2 2h-3" stroke={stroke} strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"/>
+      <path d="M8 21H5a2 2 0 01-2-2v-3" stroke={stroke} strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"/>
+      <line x1="12" y1="15.5" x2="12" y2="12" stroke={stroke} strokeWidth="1.4" strokeLinecap="round"/>
+      <path d="M12 12c0 0-2-1.8-2-3.5C10 7.1 10.9 6.5 12 6.5s2 .6 2 2c0 1.7-2 3.5-2 3.5z" stroke={stroke} strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round"/>
+    </svg>
+  )
+}
+
+// ─── Search icon — magnifier with a leaf-vein inside the lens ─────────────────
+function SearchIcon({ size = 16, stroke = 'currentColor' }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none">
+      <circle cx="11" cy="11" r="7.5" stroke={stroke} strokeWidth="1.8"/>
+      <path d="m21 21-4.5-4.5" stroke={stroke} strokeWidth="1.8" strokeLinecap="round"/>
+      <line x1="11" y1="14" x2="11" y2="9" stroke={stroke} strokeWidth="1.2" strokeLinecap="round" opacity="0.65"/>
+      <path d="M11 12l-1.8-1.4" stroke={stroke} strokeWidth="1" strokeLinecap="round" opacity="0.5"/>
+      <path d="M11 10.5l1.8-1.4" stroke={stroke} strokeWidth="1" strokeLinecap="round" opacity="0.5"/>
+    </svg>
+  )
+}
+
 // ─── Scanning animation overlay ───────────────────────────────────────────────
 function ScanOverlay() {
   return (
@@ -482,19 +509,24 @@ export default function Scan() {
 
       {/* Mode toggle */}
       <div className="flex mx-4 mt-4 mb-3 bg-dark/60 rounded-xl p-1 gap-1">
-        {['camera', 'search'].map(m => (
-          <button
-            key={m}
-            onClick={() => setMode(m)}
-            className={`flex-1 py-2 rounded-lg text-sm font-medium
-                        tracking-wide capitalize transition-colors
-                        ${mode === m
-                          ? 'bg-fern text-sage'
-                          : 'text-subtle hover:text-sage'}`}
-          >
-            {m === 'camera' ? '📷  Scan' : '🔍  Search'}
-          </button>
-        ))}
+        <button
+          onClick={() => setMode('camera')}
+          className={`flex-1 py-2 rounded-lg text-sm font-medium tracking-wide
+                      transition-colors flex items-center justify-center gap-2
+                      ${mode === 'camera' ? 'bg-fern text-sage' : 'text-subtle'}`}
+        >
+          <ScanIcon size={17} stroke="currentColor" />
+          Scan
+        </button>
+        <button
+          onClick={() => setMode('search')}
+          className={`flex-1 py-2 rounded-lg text-sm font-medium tracking-wide
+                      transition-colors flex items-center justify-center gap-2
+                      ${mode === 'search' ? 'bg-fern text-sage' : 'text-subtle'}`}
+        >
+          <SearchIcon size={16} stroke="currentColor" />
+          Search
+        </button>
       </div>
 
       {/* ── Camera mode ─────────────────────────────────────────────────── */}
@@ -597,12 +629,9 @@ export default function Scan() {
 
           {/* Search input */}
           <div className="relative">
-            <svg className="absolute left-3 top-1/2 -translate-y-1/2"
-              width="16" height="16" fill="none" viewBox="0 0 24 24"
-              stroke="#8A7E6E" strokeWidth="2">
-              <circle cx="11" cy="11" r="8"/>
-              <path d="m21 21-4.35-4.35"/>
-            </svg>
+            <span className="absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none">
+              <SearchIcon size={16} stroke="#8A7E6E" />
+            </span>
             <input
               autoFocus
               type="text"
