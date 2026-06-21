@@ -122,7 +122,7 @@ function MenuDrawer({ onClose }) {
           </button>
 
           <a
-            href="https://www.etsy.com/uk"
+            href="https://sowngarden.etsy.com"
             target="_blank"
             rel="noopener noreferrer"
             onClick={onClose}
