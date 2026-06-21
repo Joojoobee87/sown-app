@@ -75,7 +75,8 @@ function ScanOverlay() {
 
 // ─── Plant profile card (shown after identification) ──────────────────────────
 function PlantProfileCard({ result, onSave, onDismiss, saving }) {
-  const { plant, probability } = result
+  const { plant, probability, addedAs } = result
+  const isResearch = addedAs === 'want to grow'
 
   const facts = [
     { label: 'Sun',      value: plant.sun_requirements },
@@ -207,6 +208,24 @@ function PlantProfileCard({ result, onSave, onDismiss, saving }) {
             </div>
           )}
 
+          {/* Buyer notes — only shown on name-lookup results */}
+          {isResearch && plant.notes_for_buyer && (
+            <div className="bg-white border-l-2 border-l-clay border border-clay/30
+                            rounded-xl px-4 py-3">
+              <p className="text-xs font-medium text-clay mb-1 tracking-wide uppercase">
+                Before you buy
+              </p>
+              <p className="text-sm text-muted leading-relaxed">{plant.notes_for_buyer}</p>
+            </div>
+          )}
+
+          {/* Context label for research results */}
+          {isResearch && (
+            <p className="text-xs text-subtle text-center leading-relaxed px-2">
+              This will be saved to your wishlist. Update to "Growing" once you have it in the garden.
+            </p>
+          )}
+
           {/* Action buttons */}
           <div className="flex gap-2 mt-1">
             <button
@@ -225,7 +244,7 @@ function PlantProfileCard({ result, onSave, onDismiss, saving }) {
                          active:opacity-70 transition-opacity
                          disabled:opacity-50"
             >
-              {saving ? 'Saving...' : 'Save to library'}
+              {saving ? 'Saving...' : isResearch ? 'Add to wishlist' : 'Save to library'}
             </button>
           </div>
 
@@ -274,10 +293,11 @@ export default function Scan() {
   const [search, setSearch]       = useState('')
   const [searchResults, setSearchResults] = useState([])
   const [searching, setSearching] = useState(false)
-  const [result, setResult]       = useState(null)
+  const [result, setResult]       = useState(null)  // { plant, probability, addedAs }
   const [saving, setSaving]       = useState(false)
   const [saved, setSaved]         = useState(false)
   const [toast, setToast]         = useState(null)
+  const [lookingUp, setLookingUp] = useState(false)
 
   // ── Zone picker ────────────────────────────────────────────────────────────
   const [showZonePicker, setShowZonePicker] = useState(false)
@@ -377,6 +397,20 @@ export default function Scan() {
     }
   }
 
+  // ── AI name lookup — calls Edge Function with plant name ──────────────────
+  const handleNameLookup = async (plantName) => {
+    if (lookingUp) return
+    setLookingUp(true)
+    try {
+      const plant = await lookupPlantByName(plantName)
+      setResult({ plant, probability: 1, addedAs: 'want to grow' })
+    } catch {
+      showToast('Could not look up that plant — check the name and try again')
+    } finally {
+      setLookingUp(false)
+    }
+  }
+
   // ── Manual search — queries Supabase plants table ─────────────────────────
   useEffect(() => {
     if (!search.trim()) { setSearchResults([]); return }
@@ -451,7 +485,7 @@ export default function Scan() {
           user_id:    user.id,
           plant_id:   plantRow.id,
           location:   zoneName || null,
-          status:     'growing',
+          status:     result.addedAs || 'growing',
           date_added: new Date().toISOString().split('T')[0],
         })
 
@@ -665,16 +699,11 @@ export default function Scan() {
             </p>
           )}
 
-          {!searching && search && searchResults.length === 0 && (
-            <p className="text-subtle text-sm text-center py-4">
-              No plants found for "{search}"
-            </p>
-          )}
-
+          {/* Local DB results */}
           {searchResults.map(plant => (
             <button
               key={plant.id}
-              onClick={() => setResult({ plant, probability: 1 })}
+              onClick={() => setResult({ plant, probability: 1, addedAs: 'growing' })}
               className="w-full bg-dark/60 border border-subtle/30
                          rounded-xl px-4 py-3 text-left
                          active:border-moss transition-colors"
@@ -687,6 +716,40 @@ export default function Scan() {
               )}
             </button>
           ))}
+
+          {/* AI lookup — shown whenever the user has typed something */}
+          {search.trim().length > 2 && !searching && (
+            <div className="mt-1">
+              {searchResults.length === 0 && (
+                <p className="text-subtle text-xs text-center mb-3">
+                  Not found in your plant database
+                </p>
+              )}
+              <button
+                onClick={() => handleNameLookup(search.trim())}
+                disabled={lookingUp}
+                className="w-full bg-fern/20 border border-fern/40
+                           rounded-xl px-4 py-3.5 text-left
+                           active:bg-fern/30 transition-colors
+                           disabled:opacity-50 flex items-center gap-3"
+              >
+                <div className="flex-shrink-0">
+                  {lookingUp
+                    ? <div className="w-5 h-5 border-2 border-moss/30 border-t-moss rounded-full animate-spin" />
+                    : <SownIcon size={20} fill="#D4DCCA" />
+                  }
+                </div>
+                <div className="min-w-0">
+                  <p className="text-sm text-sage font-medium">
+                    {lookingUp ? 'Looking up…' : `Look up "${search.trim()}" with AI`}
+                  </p>
+                  <p className="text-xs text-moss/80 mt-0.5">
+                    Get care info and buying advice
+                  </p>
+                </div>
+              </button>
+            </div>
+          )}
 
           {/* Recent scans section */}
           {!search && (
@@ -831,28 +894,38 @@ export default function Scan() {
   )
 }
 
-// ─── Claude vision via Supabase Edge Function ────────────────────────────────
-async function identifyPlant(base64Image) {
-  const supabaseUrl = import.meta.env.VITE_SUPABASE_URL
-  const supabaseKey = import.meta.env.VITE_SUPABASE_ANON_KEY
+// ─── Claude via Supabase Edge Function ───────────────────────────────────────
+const EDGE_URL  = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/identify-plant`
+const EDGE_HDRS = {
+  'Content-Type':  'application/json',
+  'Authorization': `Bearer ${import.meta.env.VITE_SUPABASE_ANON_KEY}`,
+  'apikey':        import.meta.env.VITE_SUPABASE_ANON_KEY,
+}
 
-  const response = await fetch(`${supabaseUrl}/functions/v1/identify-plant`, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      'Authorization': `Bearer ${supabaseKey}`,
-      'apikey': supabaseKey,
-    },
+async function identifyPlant(base64Image) {
+  const res = await fetch(EDGE_URL, {
+    method: 'POST', headers: EDGE_HDRS,
     body: JSON.stringify({ image: base64Image }),
   })
-
-  if (!response.ok) {
-    const err = await response.json().catch(() => ({}))
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}))
     throw new Error(err.error || 'Could not identify plant')
   }
-
-  const plant = await response.json()
+  const plant = await res.json()
   if (plant.error) throw new Error(plant.error)
-
   return { plant, probability: plant.confidence === 'high' ? 0.9 : plant.confidence === 'medium' ? 0.7 : 0.5 }
+}
+
+async function lookupPlantByName(name) {
+  const res = await fetch(EDGE_URL, {
+    method: 'POST', headers: EDGE_HDRS,
+    body: JSON.stringify({ name }),
+  })
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}))
+    throw new Error(err.error || 'Could not look up plant')
+  }
+  const plant = await res.json()
+  if (plant.error) throw new Error(plant.error)
+  return plant
 }

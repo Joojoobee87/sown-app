@@ -48,16 +48,24 @@ function BotanicalThumb({ name = '', color = '#4A5940' }) {
   return variants[seed]
 }
 
-// ─── Status dot ──────────────────────────────────────────────────────────────
-function StatusDot({ status }) {
-  const colours = {
-    growing:  'bg-fern',
-    dormant:  'bg-clay',
-    lost:     'bg-subtle/40',
+// ─── Status badge ─────────────────────────────────────────────────────────────
+function StatusBadge({ status }) {
+  if (status === 'want to grow') {
+    return (
+      <span className="text-[10px] bg-clay/15 text-clay px-2 py-0.5
+                       rounded-full tracking-wide flex-shrink-0 whitespace-nowrap">
+        Wishlist
+      </span>
+    )
+  }
+  const dot = {
+    growing: 'bg-fern',
+    dormant: 'bg-clay',
+    lost:    'bg-subtle/40',
   }
   return (
     <span className={`inline-block w-2 h-2 rounded-full flex-shrink-0 mt-1
-      ${colours[status] || 'bg-moss'}`} />
+      ${dot[status] || 'bg-moss'}`} />
   )
 }
 
@@ -101,8 +109,8 @@ function PlantCard({ plant, onClick }) {
         </div>
       </div>
 
-      {/* Status dot */}
-      <StatusDot status={plant.status} />
+      {/* Status badge */}
+      <StatusBadge status={plant.status} />
     </button>
   )
 }
@@ -295,8 +303,13 @@ export default function Library() {
     fetchPlants()
   }, [])
 
-  // ── Zone filters ─────────────────────────────────────────────────────────────
-  const locations = ['All', ...new Set(plants.map(p => p.location).filter(Boolean))]
+  // ── Filters: zone locations + Wishlist pill ───────────────────────────────
+  const hasWishlist = plants.some(p => p.status === 'want to grow')
+  const locations   = [
+    'All',
+    ...(hasWishlist ? ['Wishlist'] : []),
+    ...new Set(plants.filter(p => p.status !== 'want to grow').map(p => p.location).filter(Boolean)),
+  ]
 
   // ── Filtered list ───────────────────────────────────────────────────────────
   const filtered = plants.filter(p => {
@@ -304,7 +317,9 @@ export default function Library() {
       (p.common_name || '').toLowerCase().includes(search.toLowerCase()) ||
       (p.latin_name || '').toLowerCase().includes(search.toLowerCase())
     const matchesFilter =
-      activeFilter === 'All' || p.location === activeFilter
+      activeFilter === 'All'      ? true :
+      activeFilter === 'Wishlist' ? p.status === 'want to grow' :
+                                    p.location === activeFilter
     return matchesSearch && matchesFilter
   })
 
@@ -376,7 +391,8 @@ export default function Library() {
         {filtered.length > 0 && (
           <p className="px-4 pb-2 text-xs text-subtle tracking-wide">
             {filtered.length} {filtered.length === 1 ? 'plant' : 'plants'}
-            {activeFilter !== 'All' ? ` in ${activeFilter}` : ''}
+            {activeFilter === 'Wishlist' ? ' on your wishlist' :
+             activeFilter !== 'All'      ? ` in ${activeFilter}` : ''}
           </p>
         )}
 
