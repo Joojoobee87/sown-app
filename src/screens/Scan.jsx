@@ -404,8 +404,9 @@ export default function Scan() {
     try {
       const plant = await lookupPlantByName(plantName)
       setResult({ plant, probability: 1, addedAs: 'want to grow' })
-    } catch {
-      showToast('Could not look up that plant — check the name and try again')
+    } catch (err) {
+      console.error('[Sown] name lookup failed:', err)
+      showToast(err.message || 'Could not look up that plant — please try again')
     } finally {
       setLookingUp(false)
     }
@@ -534,12 +535,7 @@ export default function Scan() {
   return (
     <div className="flex flex-col min-h-screen bg-dark pb-20">
 
-      {/* TopBar — dark variant for scan screen */}
-      <header className="bg-fern px-4 py-3 flex items-center justify-between">
-        <SownIcon size={30} fill="#D4DCCA" />
-        <h1 className="font-serif text-sage text-2xl tracking-widest">Sown</h1>
-        <div className="w-6" />
-      </header>
+      <TopBar />
 
       {/* Mode toggle */}
       <div className="flex mx-4 mt-4 mb-3 bg-dark/60 rounded-xl p-1 gap-1">
