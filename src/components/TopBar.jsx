@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext'
+import SownIcon from './SownIcon'
 import logoPrimary from '../assets/logo-primary.svg'
 
 // ─── Hamburger icon ───────────────────────────────────────────────────────────
@@ -187,30 +188,32 @@ export default function TopBar({ right }) {
 
   return (
     <>
-      <header className="bg-fern px-4 py-3 flex items-center justify-between">
-        {/* Balance spacer matches burger width */}
-        <div className="w-9" />
+      <header className="bg-fern px-4 py-4 flex items-center justify-between">
+        {/* Burger menu */}
+        <button
+          onClick={() => setMenuOpen(true)}
+          className="text-sage/80 active:text-sage transition-colors p-1 flex-shrink-0"
+          aria-label="Open menu"
+        >
+          <BurgerIcon />
+        </button>
 
         {/* Designer logo — filter converts dark green paths to white */}
         <img
           src={logoPrimary}
           alt="Sown Garden and Home"
-          className="h-12"
+          className="h-20"
           style={{ filter: 'brightness(0) invert(1)', opacity: 0.92 }}
         />
 
-        {/* Right slot: custom override or burger */}
-        <div className="w-9 flex justify-end">
-          {right || (
-            <button
-              onClick={() => setMenuOpen(true)}
-              className="text-sage/80 active:text-sage transition-colors p-1"
-              aria-label="Open menu"
-            >
-              <BurgerIcon />
-            </button>
-          )}
-        </div>
+        {/* S-mark icon — taps to go home */}
+        <button
+          onClick={() => navigate('/')}
+          aria-label="Home"
+          className="active:opacity-60 transition-opacity flex-shrink-0"
+        >
+          <SownIcon size={38} fill="#D4DCCA" />
+        </button>
       </header>
 
       {menuOpen && <MenuDrawer onClose={() => setMenuOpen(false)} />}
