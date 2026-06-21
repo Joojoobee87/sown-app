@@ -221,8 +221,16 @@ export default function TopBar() {
         </button>
       </header>
 
-      {/* Spacer so page content clears the fixed header */}
-      <div className="h-[76px] flex-shrink-0" />
+      {/* Phantom spacer — invisible copy of header so content clears it at any size */}
+      <div className="bg-fern px-5 py-4 flex items-center justify-between invisible"
+           aria-hidden="true">
+        <div className="w-11 h-11" />
+        <div className="flex flex-col items-center">
+          <span className="font-serif text-2xl leading-none">SOWN</span>
+          <span className="text-[10px] mt-1">Garden and Home</span>
+        </div>
+        <div className="w-[38px] h-[38px]" />
+      </div>
 
       {menuOpen && <MenuDrawer onClose={() => setMenuOpen(false)} />}
     </>

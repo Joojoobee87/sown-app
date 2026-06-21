@@ -114,17 +114,18 @@ function ZoneSheet({ zone, onSave, onClose }) {
     setError(null)
     try {
       const { data: { user } } = await supabase.auth.getUser()
-      const payload = {
-        user_id:       user.id,
-        name:          form.name.trim(),
-        aspect:        form.aspect        || null,
-        sun_exposure:  form.sun_exposure  || null,
-        soil_type:     form.soil_type     || null,
-        soil_drainage: form.soil_drainage || null,
-        shelter:       form.shelter       || null,
-        frost_pocket:  form.frost_pocket  || false,
-        notes:         form.notes.trim()  || null,
-      }
+
+      // Build payload with only non-empty values so saves work even if
+      // the attribute columns haven't been added to the database yet
+      const payload = { user_id: user.id, name: form.name.trim() }
+      if (form.aspect)        payload.aspect        = form.aspect
+      if (form.sun_exposure)  payload.sun_exposure  = form.sun_exposure
+      if (form.soil_type)     payload.soil_type     = form.soil_type
+      if (form.soil_drainage) payload.soil_drainage = form.soil_drainage
+      if (form.shelter)       payload.shelter       = form.shelter
+      if (form.frost_pocket)  payload.frost_pocket  = true
+      if (form.notes.trim())  payload.notes         = form.notes.trim()
+
       if (zone?.id) {
         const { error } = await supabase.from('garden_zones')
           .update(payload).eq('id', zone.id)
