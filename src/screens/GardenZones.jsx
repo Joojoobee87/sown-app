@@ -143,13 +143,16 @@ function ZoneSheet({ zone, onSave, onClose }) {
 
   return (
     <>
-      <div className="fixed inset-0 bg-dark/40 z-40" onClick={onClose} />
+      <div className="fixed inset-0 bg-dark/40 z-[60]" onClick={onClose} />
       <div className="fixed bottom-0 left-0 right-0 max-w-md mx-auto
-                      bg-parchment rounded-t-2xl z-50 max-h-[92vh]
+                      bg-parchment rounded-t-2xl z-[70] max-h-[92vh]
                       flex flex-col">
 
-        {/* Handle */}
-        <div className="flex justify-center pt-3 pb-1 flex-shrink-0">
+        {/* Handle — tap to dismiss */}
+        <div
+          className="flex justify-center pt-3 pb-1 flex-shrink-0 cursor-pointer"
+          onClick={onClose}
+        >
           <div className="w-10 h-1 bg-moss rounded-full" />
         </div>
 
@@ -286,9 +289,9 @@ function ZoneSheet({ zone, onSave, onClose }) {
 function DeleteConfirm({ zone, onConfirm, onCancel, deleting }) {
   return (
     <>
-      <div className="fixed inset-0 bg-dark/40 z-40" onClick={onCancel} />
+      <div className="fixed inset-0 bg-dark/40 z-[60]" onClick={onCancel} />
       <div className="fixed bottom-0 left-0 right-0 max-w-md mx-auto
-                      bg-parchment rounded-t-2xl z-50 px-5 pt-5 pb-10">
+                      bg-parchment rounded-t-2xl z-[70] px-5 pt-5 pb-10">
         <div className="w-10 h-1 bg-moss rounded-full mx-auto mb-5" />
         <p className="font-serif text-dark text-lg mb-1">Delete "{zone.name}"?</p>
         <p className="text-sm text-subtle mb-5 leading-relaxed">
@@ -343,6 +346,15 @@ export default function GardenZones() {
   }
 
   useEffect(() => { fetchZones() }, [])
+
+  useEffect(() => {
+    if (editZone || deleteZone) {
+      document.body.style.overflow = 'hidden'
+    } else {
+      document.body.style.overflow = ''
+    }
+    return () => { document.body.style.overflow = '' }
+  }, [editZone, deleteZone])
 
   const handleSaved = () => {
     setEditZone(null)
