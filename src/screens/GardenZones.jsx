@@ -156,7 +156,7 @@ function ZoneSheet({ zone, onSave, onClose }) {
           <div className="w-10 h-1 bg-moss rounded-full" />
         </div>
 
-        <div className="overflow-y-auto px-5 pb-8 flex flex-col gap-5">
+        <div className="overflow-y-auto px-5 pb-12 flex flex-col gap-5">
           <h2 className="font-serif text-dark text-xl pt-2">
             {zone?.id ? 'Edit zone' : 'New garden zone'}
           </h2>
@@ -347,15 +347,6 @@ export default function GardenZones() {
 
   useEffect(() => { fetchZones() }, [])
 
-  useEffect(() => {
-    if (editZone || deleteZone) {
-      document.body.style.overflow = 'hidden'
-    } else {
-      document.body.style.overflow = ''
-    }
-    return () => { document.body.style.overflow = '' }
-  }, [editZone, deleteZone])
-
   const handleSaved = () => {
     setEditZone(null)
     fetchZones()
@@ -374,10 +365,10 @@ export default function GardenZones() {
   }
 
   return (
-    <div className="flex flex-col min-h-screen bg-parchment pb-24">
+    <div className="flex flex-col min-h-screen bg-parchment pb-20">
       <TopBar />
 
-      <main className="flex-1 px-4 pt-4">
+      <main className="flex-1 p-4 flex flex-col gap-3">
 
         {/* Header row */}
         <div className="flex items-center justify-between mb-4">
@@ -434,7 +425,7 @@ export default function GardenZones() {
             </button>
           </div>
         ) : (
-          <div className="flex flex-col gap-3">
+          <div className="flex flex-col gap-3 w-full">
             {zones.map(zone => (
               <ZoneCard
                 key={zone.id}
