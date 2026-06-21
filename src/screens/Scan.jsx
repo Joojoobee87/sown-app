@@ -18,26 +18,31 @@ import { useState, useRef, useEffect, useCallback } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { supabase } from '../lib/supabase'
 import TopBar from '../components/TopBar'
+import SownIcon from '../components/SownIcon'
 
-// ─── Seed S mark (reused from other screens) ─────────────────────────────────
-function SeedMark({ size = 16, color = '#4A5940' }) {
-  const h = size
-  const w = size * 0.75
-  const rx = w * 0.45
-  const ry1 = h * 0.3
-  const cy1 = h * 0.28
-  const cy2 = h * 0.72
+// ─── Scan icon — corner-bracket viewfinder with a small leaf centre ──────────
+function ScanIcon({ size = 20, stroke = 'currentColor' }) {
   return (
-    <svg width={w} height={h} viewBox={`0 0 ${w} ${h}`} aria-hidden="true">
-      <ellipse cx={w / 2} cy={cy1} rx={rx} ry={ry1} fill={color} />
-      <line x1={w * 0.25} y1={h * 0.1} x2={w * 0.55} y2={h * 0.35}
-        stroke={color === '#4A5940' ? '#D4DCCA' : '#4A5940'}
-        strokeWidth="0.7" strokeLinecap="round" opacity="0.45" />
-      <ellipse cx={w / 2} cy={cy2} rx={rx} ry={ry1} fill={color}
-        transform={`rotate(180 ${w / 2} ${cy2})`} />
-      <line x1={w * 0.35} y1={h * 0.62} x2={w * 0.65} y2={h * 0.87}
-        stroke={color === '#4A5940' ? '#D4DCCA' : '#4A5940'}
-        strokeWidth="0.7" strokeLinecap="round" opacity="0.45" />
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none">
+      <path d="M3 8V5a2 2 0 012-2h3" stroke={stroke} strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"/>
+      <path d="M16 3h3a2 2 0 012 2v3" stroke={stroke} strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"/>
+      <path d="M21 16v3a2 2 0 01-2 2h-3" stroke={stroke} strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"/>
+      <path d="M8 21H5a2 2 0 01-2-2v-3" stroke={stroke} strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"/>
+      <line x1="12" y1="15.5" x2="12" y2="12" stroke={stroke} strokeWidth="1.4" strokeLinecap="round"/>
+      <path d="M12 12c0 0-2-1.8-2-3.5C10 7.1 10.9 6.5 12 6.5s2 .6 2 2c0 1.7-2 3.5-2 3.5z" stroke={stroke} strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round"/>
+    </svg>
+  )
+}
+
+// ─── Search icon — magnifier with a leaf-vein inside the lens ─────────────────
+function SearchIcon({ size = 16, stroke = 'currentColor' }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none">
+      <circle cx="11" cy="11" r="7.5" stroke={stroke} strokeWidth="1.8"/>
+      <path d="m21 21-4.5-4.5" stroke={stroke} strokeWidth="1.8" strokeLinecap="round"/>
+      <line x1="11" y1="14" x2="11" y2="9" stroke={stroke} strokeWidth="1.2" strokeLinecap="round" opacity="0.65"/>
+      <path d="M11 12l-1.8-1.4" stroke={stroke} strokeWidth="1" strokeLinecap="round" opacity="0.5"/>
+      <path d="M11 10.5l1.8-1.4" stroke={stroke} strokeWidth="1" strokeLinecap="round" opacity="0.5"/>
     </svg>
   )
 }
@@ -70,15 +75,16 @@ function ScanOverlay() {
 
 // ─── Plant profile card (shown after identification) ──────────────────────────
 function PlantProfileCard({ result, onSave, onDismiss, saving }) {
-  const { plant, probability } = result
+  const { plant, probability, addedAs } = result
+  const isResearch = addedAs === 'want to grow'
 
   const facts = [
-    { label: 'Sun',    value: plant.sun_requirements },
-    { label: 'Aspect', value: plant.aspect },
-    { label: 'Height', value: plant.height },
-    { label: 'Soil',   value: plant.soil_type },
-    { label: 'Season', value: plant.flowering_season },
-    { label: 'Growth', value: plant.growth_rate },
+    { label: 'Sun',      value: plant.sun_requirements },
+    { label: 'Soil',     value: plant.soil_type },
+    { label: 'Aspect',   value: plant.aspect },
+    { label: 'Height',   value: plant.height },
+    { label: 'Season',   value: plant.flowering_season },
+    { label: 'Frost',    value: plant.frost_hardiness },
   ].filter(f => f.value)
 
   return (
@@ -91,68 +97,40 @@ function PlantProfileCard({ result, onSave, onDismiss, saving }) {
                       bg-parchment rounded-t-2xl z-50 max-h-[85vh]
                       overflow-y-auto">
 
-        {/* Handle */}
-        <div className="flex justify-center pt-3 pb-2 sticky top-0
-                        bg-parchment z-10">
+        {/* Handle — tap to dismiss */}
+        <div
+          className="flex justify-center pt-3 pb-2 sticky top-0
+                     bg-parchment z-10 cursor-pointer"
+          onClick={onDismiss}
+        >
           <div className="w-10 h-1 bg-moss rounded-full" />
         </div>
 
-        {/* Photo header */}
-        {plant.photo_url ? (
-          <div className="relative mx-3 rounded-xl overflow-hidden h-44 mb-4">
-            <img
-              src={plant.photo_url}
-              alt={plant.common_name}
-              className="w-full h-full object-cover"
-            />
-            <div className="absolute inset-0 bg-gradient-to-t
-                            from-dark/80 via-transparent to-transparent" />
-            <div className="absolute bottom-0 left-0 right-0 p-4">
-              <p className="font-serif text-parchment text-lg leading-tight">
-                {plant.common_name}
-              </p>
-              <p className="text-xs text-moss italic mt-0.5">
-                {plant.latin_name}
-              </p>
-            </div>
-            {/* Confidence badge */}
-            <div className="absolute top-3 right-3 bg-fern/90 text-sage
-                            text-xs px-2 py-1 rounded-full">
-              {Math.round(probability * 100)}% match
-            </div>
-            {/* Photo label */}
-            <div className="absolute top-3 left-3 bg-dark/50 text-parchment
-                            text-[10px] px-2 py-1 rounded-full">
-              photo
-            </div>
+        {/* Header */}
+        <div className="mx-3 bg-fern rounded-xl p-4 mb-4 flex items-center gap-3">
+          <div className="w-12 h-12 bg-dark/30 rounded-lg flex items-center
+                          justify-center flex-shrink-0">
+            <SownIcon size={28} fill="#D4DCCA" />
           </div>
-        ) : (
-          <div className="mx-3 bg-fern rounded-xl p-4 mb-4
-                          flex items-center gap-3">
-            <div className="w-12 h-12 bg-dark/30 rounded-lg flex items-center
-                            justify-center flex-shrink-0">
-              <SeedMark size={28} color="#D4DCCA" />
-            </div>
-            <div>
-              <p className="font-serif text-sage text-base leading-tight">
-                {plant.common_name}
-              </p>
-              <p className="text-xs text-moss italic mt-0.5">
-                {plant.latin_name}
-              </p>
-            </div>
+          <div className="flex-1 min-w-0">
+            <p className="font-serif text-sage text-base leading-tight">
+              {plant.common_name}
+            </p>
+            <p className="text-xs text-moss italic mt-0.5">{plant.latin_name}</p>
           </div>
-        )}
+          <div className="bg-dark/20 text-sage text-[10px] px-2 py-1 rounded-full flex-shrink-0">
+            {plant.source === 'label' ? 'label read' : `${Math.round(probability * 100)}% match`}
+          </div>
+        </div>
 
-        <div className="px-4 pb-6 flex flex-col gap-3">
+        <div className="px-4 pb-24 flex flex-col gap-3">
 
           {/* Key facts grid */}
           {facts.length > 0 && (
             <div className="grid grid-cols-2 gap-2">
               {facts.map(({ label, value }) => (
                 <div key={label} className="bg-leaf rounded-lg px-3 py-2">
-                  <p className="text-[10px] text-subtle uppercase
-                                tracking-widest mb-0.5">
+                  <p className="text-[10px] text-subtle uppercase tracking-widest mb-0.5">
                     {label}
                   </p>
                   <p className="text-sm text-dark font-medium">{value}</p>
@@ -161,44 +139,94 @@ function PlantProfileCard({ result, onSave, onDismiss, saving }) {
             </div>
           )}
 
-          {/* Care note */}
+          {/* Watering */}
+          {plant.watering && (
+            <div className="bg-white border border-moss/40 rounded-xl px-4 py-3">
+              <p className="text-xs font-medium text-fern mb-1 tracking-wide uppercase">
+                Watering
+              </p>
+              <p className="text-sm text-muted leading-relaxed">{plant.watering}</p>
+            </div>
+          )}
+
+          {/* Pruning */}
+          {(plant.pruning_when || plant.pruning_how) && (
+            <div className="bg-white border border-moss/40 rounded-xl px-4 py-3">
+              <p className="text-xs font-medium text-fern mb-1 tracking-wide uppercase">
+                Pruning
+              </p>
+              {plant.pruning_when && (
+                <p className="text-sm text-muted leading-relaxed">
+                  <span className="font-medium text-dark">When: </span>
+                  {plant.pruning_when}
+                </p>
+              )}
+              {plant.pruning_how && (
+                <p className="text-sm text-muted leading-relaxed mt-0.5">
+                  <span className="font-medium text-dark">How: </span>
+                  {plant.pruning_how}
+                </p>
+              )}
+            </div>
+          )}
+
+          {/* Winter care */}
+          {plant.winter_care && (
+            <div className="bg-white border border-moss/40 rounded-xl px-4 py-3">
+              <p className="text-xs font-medium text-fern mb-1 tracking-wide uppercase">
+                Winter care
+              </p>
+              <p className="text-sm text-muted leading-relaxed">{plant.winter_care}</p>
+            </div>
+          )}
+
+          {/* Care notes */}
           {plant.care_notes && (
-            <div className="bg-white border border-moss/40 rounded-xl
-                            px-4 py-3 border-l-2 border-l-fern">
-              <p className="text-xs font-medium text-fern mb-1 tracking-wide">
+            <div className="bg-white border-l-2 border-l-fern border border-moss/40
+                            rounded-xl px-4 py-3">
+              <p className="text-xs font-medium text-fern mb-1 tracking-wide uppercase">
                 Care note
               </p>
-              <p className="text-sm text-muted leading-relaxed">
-                {plant.care_notes}
-              </p>
+              <p className="text-sm text-muted leading-relaxed">{plant.care_notes}</p>
             </div>
           )}
 
           {/* Wildlife value */}
           {plant.wildlife_value && (
-            <div className="bg-white border border-moss/40 rounded-xl
-                            px-4 py-3">
-              <p className="text-xs font-medium text-subtle mb-1
-                            tracking-wide uppercase">
+            <div className="bg-white border border-moss/40 rounded-xl px-4 py-3">
+              <p className="text-xs font-medium text-subtle mb-1 tracking-wide uppercase">
                 Wildlife value
               </p>
-              <p className="text-sm text-muted leading-relaxed">
-                {plant.wildlife_value}
-              </p>
+              <p className="text-sm text-muted leading-relaxed">{plant.wildlife_value}</p>
             </div>
           )}
 
           {/* Toxicity warning */}
           {plant.toxic && (
-            <div className="bg-clay/10 border border-clay/40 rounded-xl
-                            px-4 py-3">
+            <div className="bg-clay/10 border border-clay/40 rounded-xl px-4 py-3">
               <p className="text-xs font-medium text-clay mb-1 tracking-wide">
                 ⚠ Toxicity
               </p>
-              <p className="text-sm text-muted leading-relaxed">
-                {plant.toxic}
-              </p>
+              <p className="text-sm text-muted leading-relaxed">{plant.toxic}</p>
             </div>
+          )}
+
+          {/* Buyer notes — only shown on name-lookup results */}
+          {isResearch && plant.notes_for_buyer && (
+            <div className="bg-white border-l-2 border-l-clay border border-clay/30
+                            rounded-xl px-4 py-3">
+              <p className="text-xs font-medium text-clay mb-1 tracking-wide uppercase">
+                Before you buy
+              </p>
+              <p className="text-sm text-muted leading-relaxed">{plant.notes_for_buyer}</p>
+            </div>
+          )}
+
+          {/* Context label for research results */}
+          {isResearch && (
+            <p className="text-xs text-subtle text-center leading-relaxed px-2">
+              This will be saved to your wishlist. Update to "Growing" once you have it in the garden.
+            </p>
           )}
 
           {/* Action buttons */}
@@ -219,7 +247,7 @@ function PlantProfileCard({ result, onSave, onDismiss, saving }) {
                          active:opacity-70 transition-opacity
                          disabled:opacity-50"
             >
-              {saving ? 'Saving...' : 'Save to library'}
+              {saving ? 'Saving...' : isResearch ? 'Add to wishlist' : 'Save to library'}
             </button>
           </div>
 
@@ -268,17 +296,53 @@ export default function Scan() {
   const [search, setSearch]       = useState('')
   const [searchResults, setSearchResults] = useState([])
   const [searching, setSearching] = useState(false)
-  const [result, setResult]       = useState(null)
+  const [result, setResult]       = useState(null)  // { plant, probability, addedAs }
   const [saving, setSaving]       = useState(false)
   const [saved, setSaved]         = useState(false)
   const [toast, setToast]         = useState(null)
+  const [lookingUp, setLookingUp] = useState(false)
 
-  // ── Sample recent scans ────────────────────────────────────────────────────
-  // Replace with a Supabase fetch filtered by user_id
-  const recentScans = [
-    { id: 'r1', common_name: 'Hydrangea macrophylla', latin_name: 'Hydrangea macrophylla', daysAgo: 2 },
-    { id: 'r2', common_name: 'Lavandula angustifolia', latin_name: 'Lavandula angustifolia', daysAgo: 5 },
-  ]
+  // ── Zone picker ────────────────────────────────────────────────────────────
+  const [showZonePicker, setShowZonePicker] = useState(false)
+  const [zones, setZones]                   = useState([])
+  const [zonesLoading, setZonesLoading]     = useState(false)
+  const [newZoneName, setNewZoneName]       = useState('')
+  const [addingZone, setAddingZone]         = useState(false)
+
+  // ── Lock body scroll when a modal sheet is open ────────────────────────────
+  useEffect(() => {
+    if (result || showZonePicker) {
+      document.body.style.overflow = 'hidden'
+    } else {
+      document.body.style.overflow = ''
+    }
+    return () => { document.body.style.overflow = '' }
+  }, [result, showZonePicker])
+
+  // ── Recent scans from Supabase ─────────────────────────────────────────────
+  const [recentScans, setRecentScans] = useState([])
+
+  useEffect(() => {
+    const fetchRecent = async () => {
+      const { data: { user } } = await supabase.auth.getUser()
+      if (!user) return
+      const { data } = await supabase
+        .from('user_plants')
+        .select('id, created_at, plants(common_name, latin_name)')
+        .eq('user_id', user.id)
+        .order('created_at', { ascending: false })
+        .limit(5)
+      if (data) {
+        setRecentScans(data.map(row => ({
+          id: row.id,
+          common_name: row.plants?.common_name,
+          latin_name: row.plants?.latin_name,
+          daysAgo: Math.floor((Date.now() - new Date(row.created_at)) / 86400000),
+        })))
+      }
+    }
+    fetchRecent()
+  }, [saved])
 
   // ── Start camera ───────────────────────────────────────────────────────────
   const startCamera = useCallback(async () => {
@@ -337,7 +401,7 @@ export default function Scan() {
     const base64 = canvas.toDataURL('image/jpeg', 0.85).split(',')[1]
 
     try {
-      const identified = await identifyWithPlantId(base64)
+      const identified = await identifyPlant(base64)
       setResult(identified)
     } catch (err) {
       showToast('Could not identify plant — try again or search by name')
@@ -346,37 +410,68 @@ export default function Scan() {
     }
   }
 
-  // ── Manual search ──────────────────────────────────────────────────────────
-  // In production this queries your Supabase plants table.
-  // For now it filters the sample data.
+  // ── AI name lookup — calls Edge Function with plant name ──────────────────
+  const handleNameLookup = async (plantName) => {
+    if (lookingUp) return
+    setLookingUp(true)
+    try {
+      const plant = await lookupPlantByName(plantName)
+      setResult({ plant, probability: 1, addedAs: 'want to grow' })
+    } catch (err) {
+      console.error('[Sown] name lookup failed:', err)
+      showToast(err.message || 'Could not look up that plant — please try again')
+    } finally {
+      setLookingUp(false)
+    }
+  }
+
+  // ── Manual search — queries Supabase plants table ─────────────────────────
   useEffect(() => {
     if (!search.trim()) { setSearchResults([]); return }
     const timer = setTimeout(async () => {
       setSearching(true)
       try {
-        // Swap this block for a real Supabase query:
-        // const { data } = await supabase
-        //   .from('plants')
-        //   .select('*')
-        //   .ilike('common_name', `%${search}%`)
-        //   .limit(8)
-        // setSearchResults(data || [])
-        const mock = SAMPLE_PLANTS.filter(p =>
-          p.common_name.toLowerCase().includes(search.toLowerCase()) ||
-          (p.latin_name || '').toLowerCase().includes(search.toLowerCase())
-        )
-        setSearchResults(mock)
+        const { data } = await supabase
+          .from('plants')
+          .select('*')
+          .or(`common_name.ilike.%${search}%,latin_name.ilike.%${search}%`)
+          .limit(8)
+        setSearchResults(data || [])
       } finally {
         setSearching(false)
       }
-    }, 350) // debounce
+    }, 350)
     return () => clearTimeout(timer)
   }, [search])
 
+  // ── Fetch user's garden zones ──────────────────────────────────────────────
+  const fetchZones = async () => {
+    setZonesLoading(true)
+    try {
+      const { data: { user } } = await supabase.auth.getUser()
+      if (!user) return
+      const { data } = await supabase
+        .from('garden_zones')
+        .select('id, name')
+        .eq('user_id', user.id)
+        .order('created_at', { ascending: true })
+      setZones(data || [])
+    } finally {
+      setZonesLoading(false)
+    }
+  }
+
+  const handleOpenZonePicker = async () => {
+    await fetchZones()
+    setNewZoneName('')
+    setShowZonePicker(true)
+  }
+
   // ── Save to Supabase library ───────────────────────────────────────────────
-  const handleSave = async () => {
+  const handleSave = async (zoneName) => {
     if (!result || saving) return
     setSaving(true)
+    setShowZonePicker(false)
     try {
       // 1. Upsert plant into plants table
       const { data: plantRow, error: plantErr } = await supabase
@@ -387,6 +482,7 @@ export default function Scan() {
           sun_requirements:  result.plant.sun_requirements,
           soil_type:         result.plant.soil_type,
           aspect:            result.plant.aspect,
+          flowering_season:  result.plant.flowering_season,
           care_notes:        result.plant.care_notes,
           photo_url:         result.plant.photo_url,
         }, { onConflict: 'latin_name' })
@@ -402,7 +498,8 @@ export default function Scan() {
         .insert({
           user_id:    user.id,
           plant_id:   plantRow.id,
-          status:     'growing',
+          location:   zoneName || null,
+          status:     result.addedAs || 'growing',
           date_added: new Date().toISOString().split('T')[0],
         })
 
@@ -420,6 +517,27 @@ export default function Scan() {
     }
   }
 
+  // ── Create a new zone then save ────────────────────────────────────────────
+  const handleCreateZoneAndSave = async () => {
+    const name = newZoneName.trim()
+    if (!name) return
+    setAddingZone(true)
+    try {
+      const { data: { user } } = await supabase.auth.getUser()
+      const { data: zone, error } = await supabase
+        .from('garden_zones')
+        .insert({ user_id: user.id, name })
+        .select()
+        .single()
+      if (error) throw error
+      await handleSave(zone.name)
+    } catch {
+      showToast('Could not create zone — please try again')
+    } finally {
+      setAddingZone(false)
+    }
+  }
+
   // ── Toast helper ───────────────────────────────────────────────────────────
   const showToast = (msg) => {
     setToast(msg)
@@ -430,28 +548,28 @@ export default function Scan() {
   return (
     <div className="flex flex-col min-h-screen bg-dark pb-20">
 
-      {/* TopBar — dark variant for scan screen */}
-      <header className="bg-fern px-4 py-3 flex items-center justify-between">
-        <SeedMark size={30} color="#D4DCCA" />
-        <h1 className="font-serif text-sage text-2xl tracking-widest">Sown</h1>
-        <div className="w-6" />
-      </header>
+      <TopBar />
 
       {/* Mode toggle */}
       <div className="flex mx-4 mt-4 mb-3 bg-dark/60 rounded-xl p-1 gap-1">
-        {['camera', 'search'].map(m => (
-          <button
-            key={m}
-            onClick={() => setMode(m)}
-            className={`flex-1 py-2 rounded-lg text-sm font-medium
-                        tracking-wide capitalize transition-colors
-                        ${mode === m
-                          ? 'bg-fern text-sage'
-                          : 'text-subtle hover:text-sage'}`}
-          >
-            {m === 'camera' ? '📷  Scan' : '🔍  Search'}
-          </button>
-        ))}
+        <button
+          onClick={() => setMode('camera')}
+          className={`flex-1 py-2 rounded-lg text-sm font-medium tracking-wide
+                      transition-colors flex items-center justify-center gap-2
+                      ${mode === 'camera' ? 'bg-fern text-sage' : 'text-subtle'}`}
+        >
+          <ScanIcon size={17} stroke="currentColor" />
+          Scan
+        </button>
+        <button
+          onClick={() => setMode('search')}
+          className={`flex-1 py-2 rounded-lg text-sm font-medium tracking-wide
+                      transition-colors flex items-center justify-center gap-2
+                      ${mode === 'search' ? 'bg-fern text-sage' : 'text-subtle'}`}
+        >
+          <SearchIcon size={16} stroke="currentColor" />
+          Search
+        </button>
       </div>
 
       {/* ── Camera mode ─────────────────────────────────────────────────── */}
@@ -554,12 +672,9 @@ export default function Scan() {
 
           {/* Search input */}
           <div className="relative">
-            <svg className="absolute left-3 top-1/2 -translate-y-1/2"
-              width="16" height="16" fill="none" viewBox="0 0 24 24"
-              stroke="#8A7E6E" strokeWidth="2">
-              <circle cx="11" cy="11" r="8"/>
-              <path d="m21 21-4.35-4.35"/>
-            </svg>
+            <span className="absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none">
+              <SearchIcon size={16} stroke="#8A7E6E" />
+            </span>
             <input
               autoFocus
               type="text"
@@ -593,16 +708,11 @@ export default function Scan() {
             </p>
           )}
 
-          {!searching && search && searchResults.length === 0 && (
-            <p className="text-subtle text-sm text-center py-4">
-              No plants found for "{search}"
-            </p>
-          )}
-
+          {/* Local DB results */}
           {searchResults.map(plant => (
             <button
               key={plant.id}
-              onClick={() => setResult({ plant, probability: 1 })}
+              onClick={() => setResult({ plant, probability: 1, addedAs: 'growing' })}
               className="w-full bg-dark/60 border border-subtle/30
                          rounded-xl px-4 py-3 text-left
                          active:border-moss transition-colors"
@@ -615,6 +725,40 @@ export default function Scan() {
               )}
             </button>
           ))}
+
+          {/* AI lookup — shown whenever the user has typed something */}
+          {search.trim().length > 2 && !searching && (
+            <div className="mt-1">
+              {searchResults.length === 0 && (
+                <p className="text-subtle text-xs text-center mb-3">
+                  Not found in your plant database
+                </p>
+              )}
+              <button
+                onClick={() => handleNameLookup(search.trim())}
+                disabled={lookingUp}
+                className="w-full bg-fern/20 border border-fern/40
+                           rounded-xl px-4 py-3.5 text-left
+                           active:bg-fern/30 transition-colors
+                           disabled:opacity-50 flex items-center gap-3"
+              >
+                <div className="flex-shrink-0">
+                  {lookingUp
+                    ? <div className="w-5 h-5 border-2 border-moss/30 border-t-moss rounded-full animate-spin" />
+                    : <SownIcon size={20} fill="#D4DCCA" />
+                  }
+                </div>
+                <div className="min-w-0">
+                  <p className="text-sm text-sage font-medium">
+                    {lookingUp ? 'Looking up…' : `Look up "${search.trim()}" with AI`}
+                  </p>
+                  <p className="text-xs text-moss/80 mt-0.5">
+                    Get care info and buying advice
+                  </p>
+                </div>
+              </button>
+            </div>
+          )}
 
           {/* Recent scans section */}
           {!search && (
@@ -646,10 +790,103 @@ export default function Scan() {
       {result && (
         <PlantProfileCard
           result={result}
-          onSave={handleSave}
+          onSave={handleOpenZonePicker}
           onDismiss={() => setResult(null)}
           saving={saving}
         />
+      )}
+
+      {/* Zone picker sheet */}
+      {showZonePicker && (
+        <>
+          <div
+            className="fixed inset-0 bg-dark/50 z-[60]"
+            onClick={() => setShowZonePicker(false)}
+          />
+          <div className="fixed bottom-0 left-0 right-0 max-w-md mx-auto
+                          bg-parchment rounded-t-2xl z-[70] pb-safe">
+
+            {/* Handle */}
+            <div className="flex justify-center pt-3 pb-1">
+              <div className="w-10 h-1 bg-moss rounded-full" />
+            </div>
+
+            <div className="px-4 pb-8 pt-2">
+              <h2 className="font-serif text-dark text-lg mb-1">
+                Choose a garden zone
+              </h2>
+              <p className="text-sm text-subtle mb-4">
+                Where will this plant live?
+              </p>
+
+              {zonesLoading ? (
+                <div className="flex justify-center py-6">
+                  <div className="w-6 h-6 border-2 border-moss/30
+                                  border-t-moss rounded-full animate-spin" />
+                </div>
+              ) : (
+                <div className="flex flex-col gap-2 max-h-52 overflow-y-auto mb-4">
+                  {zones.map(zone => (
+                    <button
+                      key={zone.id}
+                      onClick={() => handleSave(zone.name)}
+                      disabled={saving}
+                      className="w-full bg-white border border-moss/40
+                                 rounded-xl px-4 py-3 text-left text-sm
+                                 text-dark font-medium
+                                 active:bg-leaf transition-colors
+                                 disabled:opacity-50"
+                    >
+                      {zone.name}
+                    </button>
+                  ))}
+
+                  {zones.length === 0 && (
+                    <p className="text-sm text-subtle text-center py-3">
+                      No zones yet — create your first one below
+                    </p>
+                  )}
+                </div>
+              )}
+
+              {/* New zone input */}
+              <div className="flex gap-2">
+                <input
+                  type="text"
+                  placeholder="New zone name…"
+                  value={newZoneName}
+                  onChange={e => setNewZoneName(e.target.value)}
+                  onKeyDown={e => e.key === 'Enter' && handleCreateZoneAndSave()}
+                  className="flex-1 bg-white border border-moss/40 rounded-xl
+                             px-3 py-2.5 text-sm text-dark
+                             placeholder:text-subtle/60
+                             focus:outline-none focus:border-fern
+                             transition-colors"
+                />
+                <button
+                  onClick={handleCreateZoneAndSave}
+                  disabled={!newZoneName.trim() || addingZone || saving}
+                  className="bg-fern text-sage text-sm font-medium
+                             px-4 py-2.5 rounded-xl
+                             disabled:opacity-40
+                             active:opacity-80 transition-opacity"
+                >
+                  {addingZone ? '...' : 'Add'}
+                </button>
+              </div>
+
+              {/* Skip option */}
+              <button
+                onClick={() => handleSave(null)}
+                disabled={saving}
+                className="w-full text-center text-sm text-subtle mt-4
+                           underline underline-offset-2 disabled:opacity-40"
+              >
+                Save without a zone
+              </button>
+            </div>
+          </div>
+        </>
       )}
 
       {/* Toast notification */}
@@ -666,133 +903,38 @@ export default function Scan() {
   )
 }
 
-// ─── Plant.id API integration ─────────────────────────────────────────────────
-// Docs: https://plant.id/
-// Add VITE_PLANTID_KEY to your .env file
-async function identifyWithPlantId(base64Image) {
-  const response = await fetch('https://api.plant.id/v3/identification', {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      'Api-Key': import.meta.env.VITE_PLANTID_KEY,
-    },
-    body: JSON.stringify({
-      images: [`data:image/jpeg;base64,${base64Image}`],
-      similar_images: false,
-      plant_details: [
-        'common_names',
-        'url',
-        'wiki_description',
-        'taxonomy',
-      ],
-    }),
-  })
-
-  if (!response.ok) throw new Error('Plant.id API error')
-
-  const data = await response.json()
-
-  // Take the top suggestion
-  const top = data.result?.classification?.suggestions?.[0]
-  if (!top) throw new Error('No plant identified')
-
-  // Shape into Sown plant profile format
-  // The Plant.id API returns scientific name — we enrich with our own
-  // care data from Supabase in production. For now returns what we get.
-  const plant = {
-    common_name:      top.details?.common_names?.[0] || top.name,
-    latin_name:       top.name,
-    sun_requirements: null,   // enrich from Supabase plants table
-    soil_type:        null,   // enrich from Supabase plants table
-    aspect:           null,   // enrich from Supabase plants table
-    height:           null,   // enrich from Supabase plants table
-    flowering_season: null,   // enrich from Supabase plants table
-    growth_rate:      null,   // enrich from Supabase plants table
-    care_notes:       top.details?.wiki_description?.value?.slice(0, 200) || null,
-    wildlife_value:   null,
-    toxic:            null,
-    photo_url:        top.similar_images?.[0]?.url || null,
-  }
-
-  return { plant, probability: top.probability }
+// ─── Claude via Supabase Edge Function ───────────────────────────────────────
+const EDGE_URL  = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/identify-plant`
+const EDGE_HDRS = {
+  'Content-Type':  'application/json',
+  'Authorization': `Bearer ${import.meta.env.VITE_SUPABASE_ANON_KEY}`,
+  'apikey':        import.meta.env.VITE_SUPABASE_ANON_KEY,
 }
 
-// ─── Sample plant data (for search fallback) ───────────────────────────────────
-// In production the search hits your Supabase plants table.
-const SAMPLE_PLANTS = [
-  {
-    id: 's1',
-    common_name: "Dahlia 'Bishop of Llandaff'",
-    latin_name:  'Dahlia × hybrida',
-    sun_requirements: 'Full sun',
-    soil_type:   'Well drained',
-    aspect:      'S / SW',
-    height:      '90–120cm',
-    flowering_season: 'July–October',
-    growth_rate: 'Fast',
-    care_notes:  'Lift tubers before first frost. Store in a cool dry place over winter.',
-    wildlife_value: 'Attracts bees and butterflies.',
-    toxic:       null,
-    photo_url:   null,
-  },
-  {
-    id: 's2',
-    common_name: "Rosa 'Gertrude Jekyll'",
-    latin_name:  'Rosa',
-    sun_requirements: 'Full sun',
-    soil_type:   'Fertile, moist',
-    aspect:      'S facing',
-    height:      '120–150cm',
-    flowering_season: 'June–September',
-    growth_rate: 'Moderate',
-    care_notes:  'Feed in May and July. Watch for blackspot and aphids.',
-    wildlife_value: 'Excellent for bees.',
-    toxic:       null,
-    photo_url:   null,
-  },
-  {
-    id: 's3',
-    common_name: 'Lavandula angustifolia',
-    latin_name:  'Lavandula angustifolia',
-    sun_requirements: 'Full sun',
-    soil_type:   'Well drained',
-    aspect:      'S / SE',
-    height:      '40–60cm',
-    flowering_season: 'June–August',
-    growth_rate: 'Slow–moderate',
-    care_notes:  'Light trim after flowering. Do not cut into old wood.',
-    wildlife_value: 'Excellent for bees and butterflies.',
-    toxic:       null,
-    photo_url:   null,
-  },
-  {
-    id: 's4',
-    common_name: 'Hydrangea macrophylla',
-    latin_name:  'Hydrangea macrophylla',
-    sun_requirements: 'Partial shade',
-    soil_type:   'Moist, well drained',
-    aspect:      'E / NE',
-    height:      '100–200cm',
-    flowering_season: 'July–September',
-    growth_rate: 'Moderate',
-    care_notes:  'Prune dead heads in spring. Do not prune hard.',
-    wildlife_value: 'Attracts some pollinators.',
-    toxic:       'Mildly toxic if ingested.',
-    photo_url:   null,
-  },
-  {
-    id: 's5',
-    common_name: 'Allium Purple Sensation',
-    latin_name:  'Allium aflatunense',
-    sun_requirements: 'Full sun',
-    soil_type:   'Well drained',
-    aspect:      'S / SW',
-    height:      '60–80cm',
-    flowering_season: 'May–June',
-    growth_rate: 'Moderate',
-    care_notes:  'Plant bulbs 10cm deep in autumn. Leaves die back before flowering — normal.',
-    wildlife_value: 'Excellent for bees.',
-    toxic:       null,
-    photo_url:   null,
-  },
-]
+async function identifyPlant(base64Image) {
+  const res = await fetch(EDGE_URL, {
+    method: 'POST', headers: EDGE_HDRS,
+    body: JSON.stringify({ image: base64Image }),
+  })
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}))
+    throw new Error(err.error || 'Could not identify plant')
+  }
+  const plant = await res.json()
+  if (plant.error) throw new Error(plant.error)
+  return { plant, probability: plant.confidence === 'high' ? 0.9 : plant.confidence === 'medium' ? 0.7 : 0.5 }
+}
+
+async function lookupPlantByName(name) {
+  const res = await fetch(EDGE_URL, {
+    method: 'POST', headers: EDGE_HDRS,
+    body: JSON.stringify({ name }),
+  })
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}))
+    throw new Error(err.error || 'Could not look up plant')
+  }
+  const plant = await res.json()
+  if (plant.error) throw new Error(plant.error)
+  return plant
+}

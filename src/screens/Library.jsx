@@ -2,36 +2,11 @@
 // Sown App — My Garden Library screen
 // Paste this file into src/screens/Library.jsx
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
+import { supabase } from '../lib/supabase'
 import TopBar from '../components/TopBar'
-
-// ─── Seed S icon (matches TopBar / brand mark) ───────────────────────────────
-function SeedMark({ size = 16, color = '#4A5940' }) {
-  const h = size
-  const w = size * 0.75
-  const rx = w * 0.45
-  const ry1 = h * 0.3
-  const cy1 = h * 0.28
-  const cy2 = h * 0.72
-  return (
-    <svg width={w} height={h} viewBox={`0 0 ${w} ${h}`} aria-hidden="true">
-      <ellipse cx={w / 2} cy={cy1} rx={rx} ry={ry1} fill={color} />
-      <line
-        x1={w * 0.25} y1={h * 0.1} x2={w * 0.55} y2={h * 0.35}
-        stroke={color === '#4A5940' ? '#D4DCCA' : '#4A5940'}
-        strokeWidth="0.7" strokeLinecap="round" opacity="0.45"
-      />
-      <ellipse cx={w / 2} cy={cy2} rx={rx} ry={ry1} fill={color}
-        transform={`rotate(180 ${w / 2} ${cy2})`} />
-      <line
-        x1={w * 0.35} y1={h * 0.62} x2={w * 0.65} y2={h * 0.87}
-        stroke={color === '#4A5940' ? '#D4DCCA' : '#4A5940'}
-        strokeWidth="0.7" strokeLinecap="round" opacity="0.45"
-      />
-    </svg>
-  )
-}
+import SownIcon from '../components/SownIcon'
 
 // ─── Botanical illustration placeholder ──────────────────────────────────────
 // In production this would load from your Supabase illustrations bucket.
@@ -73,16 +48,24 @@ function BotanicalThumb({ name = '', color = '#4A5940' }) {
   return variants[seed]
 }
 
-// ─── Status dot ──────────────────────────────────────────────────────────────
-function StatusDot({ status }) {
-  const colours = {
-    growing:  'bg-fern',
-    dormant:  'bg-clay',
-    lost:     'bg-subtle/40',
+// ─── Status badge ─────────────────────────────────────────────────────────────
+function StatusBadge({ status }) {
+  if (status === 'want to grow') {
+    return (
+      <span className="text-[10px] bg-clay/15 text-clay px-2 py-0.5
+                       rounded-full tracking-wide flex-shrink-0 whitespace-nowrap">
+        Wishlist
+      </span>
+    )
+  }
+  const dot = {
+    growing: 'bg-fern',
+    dormant: 'bg-clay',
+    lost:    'bg-subtle/40',
   }
   return (
     <span className={`inline-block w-2 h-2 rounded-full flex-shrink-0 mt-1
-      ${colours[status] || 'bg-moss'}`} />
+      ${dot[status] || 'bg-moss'}`} />
   )
 }
 
@@ -126,8 +109,8 @@ function PlantCard({ plant, onClick }) {
         </div>
       </div>
 
-      {/* Status dot */}
-      <StatusDot status={plant.status} />
+      {/* Status badge */}
+      <StatusBadge status={plant.status} />
     </button>
   )
 }
@@ -139,7 +122,7 @@ function EmptyState({ filter, onScan }) {
                     py-16 px-6 text-center gap-4">
       <div className="w-16 h-16 bg-leaf rounded-full flex items-center
                       justify-center">
-        <SeedMark size={32} color="#4A5940" />
+        <SownIcon size={32} fill="#44593b" />
       </div>
       <div>
         <p className="font-serif text-dark text-lg mb-1">
@@ -178,10 +161,15 @@ function PlantDetailSheet({ plant, onClose }) {
       />
       {/* Sheet */}
       <div className="fixed bottom-0 left-0 right-0 max-w-md mx-auto
-                      bg-parchment rounded-t-2xl z-50 pb-safe">
+                      bg-parchment rounded-t-2xl z-50 max-h-[85vh]
+                      overflow-y-auto">
 
-        {/* Handle */}
-        <div className="flex justify-center pt-3 pb-1">
+        {/* Handle — tap to dismiss */}
+        <div
+          className="flex justify-center pt-3 pb-1 sticky top-0
+                     bg-parchment z-10 cursor-pointer"
+          onClick={onClose}
+        >
           <div className="w-10 h-1 bg-moss rounded-full" />
         </div>
 
@@ -277,22 +265,76 @@ export default function Library() {
   const [search, setSearch]         = useState('')
   const [activeFilter, setFilter]   = useState('All')
   const [selectedPlant, setPlant]   = useState(null)
+  const [plants, setPlants]         = useState([])
+  const [loading, setLoading]       = useState(true)
 
-  // ── Sample data ─────────────────────────────────────────────────────────────
-  // Replace this with a real Supabase fetch when auth is set up.
-  // Pattern: useEffect(() => { fetchFromSupabase() }, [])
-  const plants = SAMPLE_PLANTS
+  // ── Lock body scroll when detail sheet is open ─────────────────────────────
+  useEffect(() => {
+    if (selectedPlant) {
+      document.body.style.overflow = 'hidden'
+    } else {
+      document.body.style.overflow = ''
+    }
+    return () => { document.body.style.overflow = '' }
+  }, [selectedPlant])
 
-  // ── Location filters ────────────────────────────────────────────────────────
-  const locations = ['All', ...new Set(plants.map(p => p.location).filter(Boolean))]
+  // ── Fetch from Supabase ─────────────────────────────────────────────────────
+  useEffect(() => {
+    const fetchPlants = async () => {
+      setLoading(true)
+      try {
+        const { data: { user } } = await supabase.auth.getUser()
+        if (!user) return
+        const { data } = await supabase
+          .from('user_plants')
+          .select(`
+            id, location, personal_notes, date_added, status,
+            plants (
+              common_name, latin_name,
+              sun_requirements, soil_type, aspect, care_notes
+            )
+          `)
+          .eq('user_id', user.id)
+          .order('date_added', { ascending: false })
+        if (data) {
+          setPlants(data.map(row => ({
+            id:              row.id,
+            location:        row.location,
+            personal_notes:  row.personal_notes,
+            date_added:      row.date_added,
+            status:          row.status,
+            common_name:     row.plants?.common_name,
+            latin_name:      row.plants?.latin_name,
+            sun_requirements: row.plants?.sun_requirements,
+            soil_type:       row.plants?.soil_type,
+            aspect:          row.plants?.aspect,
+            care_notes:      row.plants?.care_notes,
+          })))
+        }
+      } finally {
+        setLoading(false)
+      }
+    }
+    fetchPlants()
+  }, [])
+
+  // ── Filters: zone locations + Wishlist pill ───────────────────────────────
+  const hasWishlist = plants.some(p => p.status === 'want to grow')
+  const locations   = [
+    'All',
+    ...(hasWishlist ? ['Wishlist'] : []),
+    ...new Set(plants.filter(p => p.status !== 'want to grow').map(p => p.location).filter(Boolean)),
+  ]
 
   // ── Filtered list ───────────────────────────────────────────────────────────
   const filtered = plants.filter(p => {
     const matchesSearch =
-      p.common_name.toLowerCase().includes(search.toLowerCase()) ||
+      (p.common_name || '').toLowerCase().includes(search.toLowerCase()) ||
       (p.latin_name || '').toLowerCase().includes(search.toLowerCase())
     const matchesFilter =
-      activeFilter === 'All' || p.location === activeFilter
+      activeFilter === 'All'      ? true :
+      activeFilter === 'Wishlist' ? p.status === 'want to grow' :
+                                    p.location === activeFilter
     return matchesSearch && matchesFilter
   })
 
@@ -364,13 +406,19 @@ export default function Library() {
         {filtered.length > 0 && (
           <p className="px-4 pb-2 text-xs text-subtle tracking-wide">
             {filtered.length} {filtered.length === 1 ? 'plant' : 'plants'}
-            {activeFilter !== 'All' ? ` in ${activeFilter}` : ''}
+            {activeFilter === 'Wishlist' ? ' on your wishlist' :
+             activeFilter !== 'All'      ? ` in ${activeFilter}` : ''}
           </p>
         )}
 
         {/* Plant list */}
         <div className="px-4 flex flex-col gap-2 flex-1">
-          {filtered.length === 0
+          {loading ? (
+            <div className="flex justify-center py-16">
+              <div className="w-8 h-8 border-2 border-moss/30
+                              border-t-fern rounded-full animate-spin" />
+            </div>
+          ) : filtered.length === 0
             ? <EmptyState filter={activeFilter} onScan={() => navigate('/scan')} />
             : filtered.map(plant => (
                 <PlantCard
@@ -417,73 +465,3 @@ function formatDate(dateStr) {
   return d.toLocaleDateString('en-GB', { month: 'short', year: 'numeric' })
 }
 
-// ─── Sample data ──────────────────────────────────────────────────────────────
-// Remove this and replace with a Supabase fetch once auth is wired up.
-// See the comment in the Library component above.
-const SAMPLE_PLANTS = [
-  {
-    id: '1',
-    common_name: "Dahlia 'Bishop of Llandaff'",
-    latin_name: 'Dahlia × hybrida',
-    location: 'Front garden',
-    status: 'growing',
-    date_added: '2026-04-10',
-    sun_requirements: 'Full sun',
-    soil_type: 'Well drained',
-    aspect: 'S / SW',
-    care_notes: 'Lift tubers before first frost. Store in a cool dry place over winter.',
-    personal_notes: 'Planted along the south fence — gorgeous deep red.',
-  },
-  {
-    id: '2',
-    common_name: "Rosa 'Gertrude Jekyll'",
-    latin_name: 'Rosa',
-    location: 'Patio',
-    status: 'growing',
-    date_added: '2026-03-15',
-    sun_requirements: 'Full sun',
-    soil_type: 'Fertile, moist',
-    aspect: 'S facing',
-    care_notes: 'Feed with rose fertiliser in May and July. Watch for blackspot.',
-    personal_notes: null,
-  },
-  {
-    id: '3',
-    common_name: 'Lavandula angustifolia',
-    latin_name: 'Lavandula angustifolia',
-    location: 'Front garden',
-    status: 'growing',
-    date_added: '2026-03-20',
-    sun_requirements: 'Full sun',
-    soil_type: 'Well drained',
-    aspect: 'S / SE',
-    care_notes: 'Light trim after flowering. Do not cut into old wood.',
-    personal_notes: 'Three plants along the path edge.',
-  },
-  {
-    id: '4',
-    common_name: 'Hydrangea macrophylla',
-    latin_name: 'Hydrangea macrophylla',
-    location: 'Back garden',
-    status: 'dormant',
-    date_added: '2025-09-05',
-    sun_requirements: 'Partial shade',
-    soil_type: 'Moist, well drained',
-    aspect: 'E / NE',
-    care_notes: 'Prune dead heads in spring. Do not prune hard.',
-    personal_notes: null,
-  },
-  {
-    id: '5',
-    common_name: 'Allium Purple Sensation',
-    latin_name: 'Allium aflatunense',
-    location: 'Front garden',
-    status: 'dormant',
-    date_added: '2025-10-12',
-    sun_requirements: 'Full sun',
-    soil_type: 'Well drained',
-    aspect: 'S / SW',
-    care_notes: 'Bulbs planted 10cm deep, 15cm apart. Flowers May–June.',
-    personal_notes: 'Stored in hessian bulb bag in garage.',
-  },
-]
