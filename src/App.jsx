@@ -11,6 +11,7 @@ import PlantProfile from './screens/PlantProfile'
 import NavBar from './components/NavBar'
 import PasswordReset from './screens/PasswordReset'
 import About from './screens/About'
+import Profile from './screens/Profile'
 
 export default function App() {
   return (
@@ -40,6 +41,9 @@ export default function App() {
             }/>
             <Route path="/about" element={
               <ProtectedRoute><About /></ProtectedRoute>
+            }/>
+            <Route path="/profile" element={
+              <ProtectedRoute><Profile /></ProtectedRoute>
             }/>
           </Routes>
           <NavBar />
