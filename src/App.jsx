@@ -12,6 +12,7 @@ import NavBar from './components/NavBar'
 import PasswordReset from './screens/PasswordReset'
 import About from './screens/About'
 import Profile from './screens/Profile'
+import GardenZones from './screens/GardenZones'
 
 export default function App() {
   return (
@@ -44,6 +45,9 @@ export default function App() {
             }/>
             <Route path="/profile" element={
               <ProtectedRoute><Profile /></ProtectedRoute>
+            }/>
+            <Route path="/zones" element={
+              <ProtectedRoute><GardenZones /></ProtectedRoute>
             }/>
           </Routes>
           <NavBar />

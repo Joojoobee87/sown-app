@@ -61,6 +61,7 @@ export default function Home() {
   const navigate  = useNavigate()
 
   const [plantCount, setPlantCount] = useState(null)
+  const [zoneCount, setZoneCount]   = useState(null)
   const [loading, setLoading]       = useState(true)
 
   // Extract first name from Supabase user_metadata, fall back to email prefix
@@ -78,21 +79,22 @@ export default function Home() {
   const quote = QUOTES[new Date().getDate() % QUOTES.length]  // cycles by day of month
 
   useEffect(() => {
-    const fetchCount = async () => {
+    const fetchCounts = async () => {
       setLoading(true)
       try {
         const { data: { user: authUser } } = await supabase.auth.getUser()
         if (!authUser) return
-        const { count } = await supabase
-          .from('user_plants')
-          .select('id', { count: 'exact', head: true })
-          .eq('user_id', authUser.id)
-        setPlantCount(count ?? 0)
+        const [{ count: plants }, { count: zones }] = await Promise.all([
+          supabase.from('user_plants').select('id', { count: 'exact', head: true }).eq('user_id', authUser.id),
+          supabase.from('garden_zones').select('id', { count: 'exact', head: true }).eq('user_id', authUser.id),
+        ])
+        setPlantCount(plants ?? 0)
+        setZoneCount(zones ?? 0)
       } finally {
         setLoading(false)
       }
     }
-    fetchCount()
+    fetchCounts()
   }, [])
 
   const hasPlants = !loading && plantCount !== null && plantCount > 0
@@ -181,6 +183,33 @@ export default function Home() {
                 {plantCount === 0
                   ? 'No plants saved yet'
                   : `${plantCount} ${plantCount === 1 ? 'plant' : 'plants'} saved`}
+              </p>
+            )}
+          </div>
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none"
+               stroke="#8A7E6E" strokeWidth="2" strokeLinecap="round">
+            <path d="M9 18l6-6-6-6"/>
+          </svg>
+        </button>
+
+        {/* Garden zones */}
+        <button
+          onClick={() => navigate('/zones')}
+          className="bg-white border border-moss/40 rounded-xl p-4
+                     flex items-center justify-between
+                     active:bg-leaf transition-colors text-left w-full"
+        >
+          <div>
+            <p className="text-xs text-subtle uppercase tracking-widest mb-0.5">
+              My garden zones
+            </p>
+            {loading ? (
+              <div className="h-4 w-24 bg-moss/20 rounded animate-pulse mt-1" />
+            ) : (
+              <p className="text-sm text-dark font-medium">
+                {zoneCount === 0
+                  ? 'No zones set up yet'
+                  : `${zoneCount} ${zoneCount === 1 ? 'zone' : 'zones'} defined`}
               </p>
             )}
           </div>
