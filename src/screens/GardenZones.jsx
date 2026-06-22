@@ -103,7 +103,18 @@ function ZoneCard({ zone, onEdit, onDelete }) {
 // Using a full-screen approach avoids keyboard-hiding and width issues
 // that plague bottom sheets on mobile
 function ZoneSheet({ zone, onSave, onClose }) {
-  const [form, setForm]     = useState(zone || BLANK_ZONE)
+  // Normalise null DB values to empty strings so .trim() never crashes
+  const [form, setForm] = useState(zone ? {
+    name:          zone.name          || '',
+    aspect:        zone.aspect        || '',
+    sun_exposure:  zone.sun_exposure  || '',
+    soil_type:     zone.soil_type     || '',
+    soil_drainage: zone.soil_drainage || '',
+    shelter:       zone.shelter       || '',
+    frost_pocket:  zone.frost_pocket  ?? false,
+    notes:         zone.notes         || '',
+  } : BLANK_ZONE)
+
   const [saving, setSaving] = useState(false)
   const [error, setError]   = useState(null)
 
@@ -116,15 +127,18 @@ function ZoneSheet({ zone, onSave, onClose }) {
     try {
       const { data: { user } } = await supabase.auth.getUser()
 
-      // Only include fields with values so saves work before migration is applied
-      const payload = { user_id: user.id, name: form.name.trim() }
-      if (form.aspect)        payload.aspect        = form.aspect
-      if (form.sun_exposure)  payload.sun_exposure  = form.sun_exposure
-      if (form.soil_type)     payload.soil_type     = form.soil_type
-      if (form.soil_drainage) payload.soil_drainage = form.soil_drainage
-      if (form.shelter)       payload.shelter       = form.shelter
-      if (form.frost_pocket)  payload.frost_pocket  = true
-      if (form.notes.trim())  payload.notes         = form.notes.trim()
+      // Save null for cleared optional fields so edits properly clear values
+      const payload = {
+        user_id:       user.id,
+        name:          form.name.trim(),
+        aspect:        form.aspect        || null,
+        sun_exposure:  form.sun_exposure  || null,
+        soil_type:     form.soil_type     || null,
+        soil_drainage: form.soil_drainage || null,
+        shelter:       form.shelter       || null,
+        frost_pocket:  form.frost_pocket  || false,
+        notes:         form.notes.trim()  || null,
+      }
 
       if (zone?.id) {
         const { error } = await supabase.from('garden_zones')
