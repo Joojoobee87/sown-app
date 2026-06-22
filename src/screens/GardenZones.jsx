@@ -99,8 +99,9 @@ function ZoneCard({ zone, onEdit, onDelete }) {
   )
 }
 
-// ─── Zone form sheet ──────────────────────────────────────────────────────────
-// Sticky header + scrollable body + sticky footer so buttons are always visible
+// ─── Zone form — full-screen overlay ─────────────────────────────────────────
+// Using a full-screen approach avoids keyboard-hiding and width issues
+// that plague bottom sheets on mobile
 function ZoneSheet({ zone, onSave, onClose }) {
   const [form, setForm]     = useState(zone || BLANK_ZONE)
   const [saving, setSaving] = useState(false)
@@ -142,156 +143,146 @@ function ZoneSheet({ zone, onSave, onClose }) {
   }
 
   return (
-    <>
-      <div className="fixed inset-0 bg-dark/40 z-[60]" onClick={onClose} />
+    <div className="fixed inset-0 left-0 right-0 max-w-md mx-auto
+                    bg-parchment z-[70] flex flex-col overflow-hidden">
 
-      <div className="fixed bottom-0 left-0 right-0 max-w-md mx-auto
-                      bg-parchment rounded-t-2xl z-[70] h-[92vh] flex flex-col">
-
-        {/* Handle — tap to dismiss */}
-        <div
-          className="flex justify-center pt-3 pb-2 flex-shrink-0 cursor-pointer"
+      {/* Header — matches app TopBar style */}
+      <div className="bg-fern px-4 py-4 flex items-center gap-3 flex-shrink-0">
+        <button
           onClick={onClose}
+          className="text-sage/80 active:text-sage transition-colors p-1 flex-shrink-0"
+          aria-label="Close"
         >
-          <div className="w-10 h-1 bg-moss rounded-full" />
-        </div>
-
-        {/* Sticky sheet header */}
-        <div className="flex items-center justify-between px-5 pb-4 flex-shrink-0
-                        border-b border-moss/20">
-          <h2 className="font-serif text-dark text-xl">
-            {zone?.id ? 'Edit zone' : 'New garden zone'}
-          </h2>
-          <button
-            onClick={onClose}
-            className="text-sm text-subtle font-medium active:opacity-60 transition-opacity"
-          >
-            Cancel
-          </button>
-        </div>
-
-        {/* Scrollable form body */}
-        <div className="flex-1 overflow-y-auto px-5 py-5 flex flex-col gap-5">
-
-          {/* Name */}
-          <div className="flex flex-col gap-1.5">
-            <label className="text-[10px] text-subtle uppercase tracking-widest font-medium">
-              Zone name
-            </label>
-            <input
-              autoFocus
-              type="text"
-              placeholder="e.g. Front garden, Raised bed, Greenhouse"
-              value={form.name}
-              onChange={e => set('name', e.target.value)}
-              className="w-full bg-white border border-moss/40 rounded-xl
-                         px-4 py-3 text-sm text-dark placeholder:text-subtle/50
-                         focus:outline-none focus:border-fern transition-colors"
-            />
-          </div>
-
-          {/* Aspect */}
-          <div className="flex flex-col gap-2">
-            <label className="text-[10px] text-subtle uppercase tracking-widest font-medium">
-              Aspect — which direction does it face?
-            </label>
-            <PillGroup options={ASPECTS} value={form.aspect}
-              onChange={v => set('aspect', v)} />
-          </div>
-
-          {/* Sun exposure */}
-          <div className="flex flex-col gap-2">
-            <label className="text-[10px] text-subtle uppercase tracking-widest font-medium">
-              Sun exposure
-            </label>
-            <PillGroup options={SUN} value={form.sun_exposure}
-              onChange={v => set('sun_exposure', v)} />
-          </div>
-
-          {/* Soil type */}
-          <div className="flex flex-col gap-2">
-            <label className="text-[10px] text-subtle uppercase tracking-widest font-medium">
-              Soil type
-            </label>
-            <PillGroup options={SOILS} value={form.soil_type}
-              onChange={v => set('soil_type', v)} />
-          </div>
-
-          {/* Soil drainage */}
-          <div className="flex flex-col gap-2">
-            <label className="text-[10px] text-subtle uppercase tracking-widest font-medium">
-              Soil drainage
-            </label>
-            <PillGroup options={DRAINAGE} value={form.soil_drainage}
-              onChange={v => set('soil_drainage', v)} />
-          </div>
-
-          {/* Shelter */}
-          <div className="flex flex-col gap-2">
-            <label className="text-[10px] text-subtle uppercase tracking-widest font-medium">
-              Shelter
-            </label>
-            <PillGroup options={SHELTER} value={form.shelter}
-              onChange={v => set('shelter', v)} />
-          </div>
-
-          {/* Frost pocket toggle */}
-          <div className="flex items-center justify-between bg-white border
-                          border-moss/40 rounded-xl px-4 py-3">
-            <div>
-              <p className="text-sm text-dark font-medium">Frost pocket</p>
-              <p className="text-xs text-subtle mt-0.5">
-                Low-lying spots where cold air settles
-              </p>
-            </div>
-            <button
-              type="button"
-              onClick={() => set('frost_pocket', !form.frost_pocket)}
-              className={`w-11 h-6 rounded-full transition-colors relative flex-shrink-0
-                          ${form.frost_pocket ? 'bg-fern' : 'bg-moss/30'}`}
-            >
-              <span className={`absolute top-0.5 w-5 h-5 bg-white rounded-full shadow
-                                transition-transform
-                                ${form.frost_pocket ? 'translate-x-5' : 'translate-x-0.5'}`} />
-            </button>
-          </div>
-
-          {/* Notes */}
-          <div className="flex flex-col gap-1.5">
-            <label className="text-[10px] text-subtle uppercase tracking-widest font-medium">
-              Notes
-            </label>
-            <textarea
-              placeholder="Anything else worth knowing about this spot…"
-              value={form.notes}
-              onChange={e => set('notes', e.target.value)}
-              rows={3}
-              className="w-full bg-white border border-moss/40 rounded-xl
-                         px-4 py-3 text-sm text-dark placeholder:text-subtle/50
-                         focus:outline-none focus:border-fern transition-colors
-                         resize-none"
-            />
-          </div>
-
-          {error && (
-            <p className="text-sm text-clay">{error}</p>
-          )}
-        </div>
-
-        {/* Sticky footer — always visible above keyboard / nav */}
-        <div className="flex-shrink-0 px-5 py-4 border-t border-moss/20 bg-parchment">
-          <button
-            onClick={handleSave}
-            disabled={saving}
-            className="w-full bg-fern text-sage text-sm font-medium
-                       py-3.5 rounded-xl disabled:opacity-50
-                       active:opacity-80 transition-opacity"
-          >
-            {saving ? 'Saving…' : zone?.id ? 'Save changes' : 'Create zone'}
-          </button>
-        </div>
+          <svg width="22" height="22" viewBox="0 0 24 24" fill="none"
+               stroke="currentColor" strokeWidth="1.8" strokeLinecap="round">
+            <path d="M19 12H5M12 5l-7 7 7 7"/>
+          </svg>
+        </button>
+        <span className="font-serif text-sage text-lg leading-tight">
+          {zone?.id ? 'Edit zone' : 'New garden zone'}
+        </span>
       </div>
-    </>
+
+      {/* Scrollable form body */}
+      <div className="flex-1 overflow-y-auto p-4 flex flex-col gap-5">
+
+        {/* Name */}
+        <div className="flex flex-col gap-1.5">
+          <label className="text-[10px] text-subtle uppercase tracking-widest font-medium">
+            Zone name
+          </label>
+          <input
+            type="text"
+            placeholder="e.g. Front garden, Raised bed, Greenhouse"
+            value={form.name}
+            onChange={e => set('name', e.target.value)}
+            className="w-full bg-white border border-moss/40 rounded-xl
+                       px-4 py-3 text-sm text-dark placeholder:text-subtle/50
+                       focus:outline-none focus:border-fern transition-colors"
+          />
+        </div>
+
+        {/* Aspect */}
+        <div className="flex flex-col gap-2">
+          <label className="text-[10px] text-subtle uppercase tracking-widest font-medium">
+            Aspect — which direction does it face?
+          </label>
+          <PillGroup options={ASPECTS} value={form.aspect}
+            onChange={v => set('aspect', v)} />
+        </div>
+
+        {/* Sun exposure */}
+        <div className="flex flex-col gap-2">
+          <label className="text-[10px] text-subtle uppercase tracking-widest font-medium">
+            Sun exposure
+          </label>
+          <PillGroup options={SUN} value={form.sun_exposure}
+            onChange={v => set('sun_exposure', v)} />
+        </div>
+
+        {/* Soil type */}
+        <div className="flex flex-col gap-2">
+          <label className="text-[10px] text-subtle uppercase tracking-widest font-medium">
+            Soil type
+          </label>
+          <PillGroup options={SOILS} value={form.soil_type}
+            onChange={v => set('soil_type', v)} />
+        </div>
+
+        {/* Soil drainage */}
+        <div className="flex flex-col gap-2">
+          <label className="text-[10px] text-subtle uppercase tracking-widest font-medium">
+            Soil drainage
+          </label>
+          <PillGroup options={DRAINAGE} value={form.soil_drainage}
+            onChange={v => set('soil_drainage', v)} />
+        </div>
+
+        {/* Shelter */}
+        <div className="flex flex-col gap-2">
+          <label className="text-[10px] text-subtle uppercase tracking-widest font-medium">
+            Shelter
+          </label>
+          <PillGroup options={SHELTER} value={form.shelter}
+            onChange={v => set('shelter', v)} />
+        </div>
+
+        {/* Frost pocket toggle */}
+        <div className="flex items-center justify-between bg-white border
+                        border-moss/40 rounded-xl px-4 py-3">
+          <div>
+            <p className="text-sm text-dark font-medium">Frost pocket</p>
+            <p className="text-xs text-subtle mt-0.5">
+              Low-lying spots where cold air settles
+            </p>
+          </div>
+          <button
+            type="button"
+            onClick={() => set('frost_pocket', !form.frost_pocket)}
+            className={`w-11 h-6 rounded-full transition-colors relative flex-shrink-0
+                        ${form.frost_pocket ? 'bg-fern' : 'bg-moss/30'}`}
+          >
+            <span className={`absolute top-0.5 w-5 h-5 bg-white rounded-full shadow
+                              transition-transform
+                              ${form.frost_pocket ? 'translate-x-5' : 'translate-x-0.5'}`} />
+          </button>
+        </div>
+
+        {/* Notes */}
+        <div className="flex flex-col gap-1.5">
+          <label className="text-[10px] text-subtle uppercase tracking-widest font-medium">
+            Notes
+          </label>
+          <textarea
+            placeholder="Anything else worth knowing about this spot…"
+            value={form.notes}
+            onChange={e => set('notes', e.target.value)}
+            rows={3}
+            className="w-full bg-white border border-moss/40 rounded-xl
+                       px-4 py-3 text-sm text-dark placeholder:text-subtle/50
+                       focus:outline-none focus:border-fern transition-colors
+                       resize-none"
+          />
+        </div>
+
+        {error && (
+          <p className="text-sm text-clay">{error}</p>
+        )}
+      </div>
+
+      {/* Sticky save button */}
+      <div className="flex-shrink-0 px-4 py-4 border-t border-moss/20 bg-parchment">
+        <button
+          onClick={handleSave}
+          disabled={saving}
+          className="w-full bg-fern text-sage text-sm font-medium
+                     py-3.5 rounded-xl disabled:opacity-50
+                     active:opacity-80 transition-opacity"
+        >
+          {saving ? 'Saving…' : zone?.id ? 'Save changes' : 'Create zone'}
+        </button>
+      </div>
+    </div>
   )
 }
 
