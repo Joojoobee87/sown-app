@@ -57,11 +57,13 @@ function MenuDrawer({ onClose }) {
   const { user, signOut } = useAuth()
   const navigate = useNavigate()
 
-  const fullName = user?.user_metadata?.full_name || ''
+  const forename = user?.user_metadata?.forename || ''
+  const surname  = user?.user_metadata?.surname  || ''
+  const fullName = [forename, surname].filter(Boolean).join(' ')
+              || user?.user_metadata?.full_name || ''
   const email    = user?.email || ''
-  const initials = fullName
-    ? fullName.split(' ').map(w => w[0]).slice(0, 2).join('').toUpperCase()
-    : (email[0] || 'S').toUpperCase()
+  const initials = forename[0]?.toUpperCase()
+               || (email[0] || 'S').toUpperCase()
 
   const go = (path) => { navigate(path); onClose() }
 

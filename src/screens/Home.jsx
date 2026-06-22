@@ -64,9 +64,10 @@ export default function Home() {
   const [zoneCount, setZoneCount]   = useState(null)
   const [loading, setLoading]       = useState(true)
 
-  // Extract first name from Supabase user_metadata, fall back to email prefix
+  // Prefer dedicated forename field; fall back to first word of full_name, then email prefix
+  const forename  = user?.user_metadata?.forename || ''
   const fullName  = user?.user_metadata?.full_name || ''
-  const firstName = fullName.split(' ')[0] || user?.email?.split('@')[0] || null
+  const firstName = forename || fullName.split(' ')[0] || user?.email?.split('@')[0] || null
 
   // Greeting changes by time of day
   const hour     = new Date().getHours()

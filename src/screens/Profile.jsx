@@ -32,11 +32,12 @@ function CheckIcon() {
 }
 
 // ─── Editable field ───────────────────────────────────────────────────────────
-function EditableField({ label, value, onSave, type = 'text', hint }) {
+// No autoFocus — prevents keyboard popping up and resizing the page on mobile
+function EditableField({ label, value, onSave, type = 'text', hint, readOnly }) {
   const [editing, setEditing]   = useState(false)
   const [draft, setDraft]       = useState(value || '')
   const [saving, setSaving]     = useState(false)
-  const [feedback, setFeedback] = useState(null) // { type: 'success'|'error', msg }
+  const [feedback, setFeedback] = useState(null)
 
   const handleSave = async () => {
     if (draft === value || !draft.trim()) { setEditing(false); return }
@@ -60,13 +61,23 @@ function EditableField({ label, value, onSave, type = 'text', hint }) {
     setFeedback(null)
   }
 
+  // Read-only display row (e.g. member since, account ID)
+  if (readOnly) {
+    return (
+      <div className="flex items-center justify-between">
+        <span className="text-sm text-subtle">{label}</span>
+        <span className="text-sm text-dark font-medium">{value || '—'}</span>
+      </div>
+    )
+  }
+
   return (
     <div className="flex flex-col gap-1.5">
       <div className="flex items-center justify-between">
         <label className="text-[10px] text-subtle uppercase tracking-widest font-medium">
           {label}
         </label>
-        {!editing && (
+        {!editing && onSave && (
           <button
             onClick={() => { setDraft(value || ''); setEditing(true) }}
             className="text-fern active:opacity-60 transition-opacity flex items-center gap-1
@@ -80,7 +91,6 @@ function EditableField({ label, value, onSave, type = 'text', hint }) {
       {editing ? (
         <div className="flex flex-col gap-2">
           <input
-            autoFocus
             type={type}
             value={draft}
             onChange={e => setDraft(e.target.value)}
@@ -115,7 +125,9 @@ function EditableField({ label, value, onSave, type = 'text', hint }) {
           </div>
         </div>
       ) : (
-        <p className="text-sm text-dark py-1">{value || <span className="text-subtle italic">Not set</span>}</p>
+        <p className="text-sm text-dark py-1">
+          {value || <span className="text-subtle italic">Not set</span>}
+        </p>
       )}
 
       {feedback && (
@@ -129,16 +141,15 @@ function EditableField({ label, value, onSave, type = 'text', hint }) {
 
 // ─── Change password section ──────────────────────────────────────────────────
 function ChangePassword() {
-  const [open, setOpen]           = useState(false)
-  const [current, setCurrent]     = useState('')
-  const [newPass, setNewPass]     = useState('')
-  const [confirm, setConfirm]     = useState('')
-  const [saving, setSaving]       = useState(false)
-  const [feedback, setFeedback]   = useState(null)
-  const [showNew, setShowNew]     = useState(false)
+  const [open, setOpen]         = useState(false)
+  const [newPass, setNewPass]   = useState('')
+  const [confirm, setConfirm]   = useState('')
+  const [saving, setSaving]     = useState(false)
+  const [feedback, setFeedback] = useState(null)
+  const [showNew, setShowNew]   = useState(false)
 
   const reset = () => {
-    setCurrent(''); setNewPass(''); setConfirm('')
+    setNewPass(''); setConfirm('')
     setFeedback(null); setOpen(false)
   }
 
@@ -148,7 +159,7 @@ function ChangePassword() {
       return
     }
     if (newPass !== confirm) {
-      setFeedback({ type: 'error', msg: 'Passwords don\'t match.' })
+      setFeedback({ type: 'error', msg: "Passwords don't match." })
       return
     }
     setSaving(true)
@@ -250,22 +261,36 @@ function ChangePassword() {
 
 // ─── Main Profile screen ──────────────────────────────────────────────────────
 export default function Profile() {
-  const navigate    = useNavigate()
-  const { user }    = useAuth()
+  const navigate = useNavigate()
+  const { user } = useAuth()
 
-  const fullName    = user?.user_metadata?.full_name || ''
+  const forename    = user?.user_metadata?.forename || ''
+  const surname     = user?.user_metadata?.surname  || ''
   const email       = user?.email || ''
   const provider    = user?.app_metadata?.provider || 'email'
+  const isOAuth     = provider !== 'email'
+  const initial     = forename[0]?.toUpperCase() || email[0]?.toUpperCase() || 'S'
   const memberSince = user?.created_at
     ? new Date(user.created_at).toLocaleDateString('en-GB', { month: 'long', year: 'numeric' })
     : null
 
-  const initials = fullName
-    ? fullName.split(' ').map(w => w[0]).slice(0, 2).join('').toUpperCase()
-    : email[0]?.toUpperCase() || 'S'
+  const updateForename = async (name) => {
+    const { error } = await supabase.auth.updateUser({
+      data: {
+        forename: name,
+        full_name: [name, surname].filter(Boolean).join(' '),
+      },
+    })
+    if (error) throw error
+  }
 
-  const updateName = async (name) => {
-    const { error } = await supabase.auth.updateUser({ data: { full_name: name } })
+  const updateSurname = async (name) => {
+    const { error } = await supabase.auth.updateUser({
+      data: {
+        surname: name,
+        full_name: [forename, name].filter(Boolean).join(' '),
+      },
+    })
     if (error) throw error
   }
 
@@ -274,12 +299,10 @@ export default function Profile() {
     if (error) throw error
   }
 
-  const isOAuth = provider !== 'email'
-
   return (
     <div className="flex flex-col min-h-screen bg-parchment pb-10">
 
-      {/* Header */}
+      {/* Header — avatar initial only, no name */}
       <div className="bg-fern px-4 pt-4 pb-10">
         <button
           onClick={() => navigate(-1)}
@@ -290,17 +313,10 @@ export default function Profile() {
           <span className="text-sm">Back</span>
         </button>
 
-        {/* Avatar */}
-        <div className="flex flex-col items-center pt-2">
+        <div className="flex justify-center pt-2">
           <div className="w-20 h-20 bg-dark/30 rounded-full flex items-center justify-center">
-            <span className="font-serif text-sage text-3xl leading-none">{initials}</span>
+            <span className="font-serif text-sage text-3xl leading-none">{initial}</span>
           </div>
-          {fullName && (
-            <p className="text-sage font-medium text-lg mt-3">{fullName}</p>
-          )}
-          {memberSince && (
-            <p className="text-moss text-xs mt-1">Member since {memberSince}</p>
-          )}
         </div>
       </div>
 
@@ -314,9 +330,17 @@ export default function Profile() {
           </p>
 
           <EditableField
-            label="Full name"
-            value={fullName}
-            onSave={updateName}
+            label="Forename"
+            value={forename}
+            onSave={updateForename}
+          />
+
+          <div className="h-px bg-moss/15" />
+
+          <EditableField
+            label="Surname"
+            value={surname}
+            onSave={updateSurname}
           />
 
           <div className="h-px bg-moss/15" />
@@ -328,12 +352,22 @@ export default function Profile() {
             onSave={isOAuth ? null : updateEmail}
             hint={isOAuth
               ? undefined
-              : 'We\'ll send a confirmation to your new address before it takes effect.'}
+              : "We'll send a confirmation to your new address before it takes effect."}
           />
           {isOAuth && (
             <p className="text-xs text-subtle -mt-3">
               Your email is managed by your {provider} account.
             </p>
+          )}
+
+          <div className="h-px bg-moss/15" />
+
+          {memberSince && (
+            <EditableField
+              label="Member since"
+              value={memberSince}
+              readOnly
+            />
           )}
         </div>
 
@@ -356,12 +390,6 @@ export default function Profile() {
             <span className="text-sm text-subtle">Sign-in method</span>
             <span className="text-sm text-dark capitalize font-medium">{provider}</span>
           </div>
-          {memberSince && (
-            <div className="flex justify-between items-center">
-              <span className="text-sm text-subtle">Member since</span>
-              <span className="text-sm text-dark font-medium">{memberSince}</span>
-            </div>
-          )}
           <div className="flex justify-between items-center">
             <span className="text-sm text-subtle">Account ID</span>
             <span className="text-xs text-subtle/60 font-mono">
