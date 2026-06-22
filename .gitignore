@@ -82,6 +82,9 @@ public
 tmp/
 temp/
 
+# Claude Code local session data
+.claude/
+
 # Editor directories and files
 .vscode/
 .idea/
