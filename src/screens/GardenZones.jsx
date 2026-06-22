@@ -1,11 +1,10 @@
 import { useState, useEffect } from 'react'
-import { useNavigate } from 'react-router-dom'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../context/AuthContext'
 import TopBar from '../components/TopBar'
 
 // ─── Option sets ──────────────────────────────────────────────────────────────
-const ASPECTS = ['N', 'NE', 'E', 'SE', 'S', 'SW', 'W', 'NW']
+const ASPECTS  = ['N', 'NE', 'E', 'SE', 'S', 'SW', 'W', 'NW']
 const SUN      = ['Full sun', 'Partial shade', 'Full shade']
 const SOILS    = ['Clay', 'Sandy', 'Loam', 'Chalk', 'Peat', 'Silty']
 const DRAINAGE = ['Well drained', 'Moist but well drained', 'Poorly drained']
@@ -63,7 +62,7 @@ function ZoneCard({ zone, onEdit, onDelete }) {
     <div className="bg-white border border-moss/40 rounded-xl p-4">
       <div className="flex items-start justify-between gap-2 mb-2">
         <p className="font-serif text-dark text-base leading-tight">{zone.name}</p>
-        <div className="flex gap-2 flex-shrink-0">
+        <div className="flex gap-3 flex-shrink-0">
           <button
             onClick={() => onEdit(zone)}
             className="text-xs text-fern font-medium underline underline-offset-2
@@ -94,13 +93,14 @@ function ZoneCard({ zone, onEdit, onDelete }) {
       )}
 
       {chips.length === 0 && !zone.notes && (
-        <p className="text-xs text-subtle/60 mt-1">No details added yet</p>
+        <p className="text-xs text-subtle/60 mt-1">No details added yet — tap Edit to add</p>
       )}
     </div>
   )
 }
 
 // ─── Zone form sheet ──────────────────────────────────────────────────────────
+// Sticky header + scrollable body + sticky footer so buttons are always visible
 function ZoneSheet({ zone, onSave, onClose }) {
   const [form, setForm]     = useState(zone || BLANK_ZONE)
   const [saving, setSaving] = useState(false)
@@ -115,8 +115,7 @@ function ZoneSheet({ zone, onSave, onClose }) {
     try {
       const { data: { user } } = await supabase.auth.getUser()
 
-      // Build payload with only non-empty values so saves work even if
-      // the attribute columns haven't been added to the database yet
+      // Only include fields with values so saves work before migration is applied
       const payload = { user_id: user.id, name: form.name.trim() }
       if (form.aspect)        payload.aspect        = form.aspect
       if (form.sun_exposure)  payload.sun_exposure  = form.sun_exposure
@@ -145,22 +144,34 @@ function ZoneSheet({ zone, onSave, onClose }) {
   return (
     <>
       <div className="fixed inset-0 bg-dark/40 z-[60]" onClick={onClose} />
+
       <div className="fixed bottom-0 left-0 right-0 max-w-md mx-auto
-                      bg-parchment rounded-t-2xl z-[70] max-h-[92vh]
-                      flex flex-col">
+                      bg-parchment rounded-t-2xl z-[70] h-[92vh] flex flex-col">
 
         {/* Handle — tap to dismiss */}
         <div
-          className="flex justify-center pt-3 pb-1 flex-shrink-0 cursor-pointer"
+          className="flex justify-center pt-3 pb-2 flex-shrink-0 cursor-pointer"
           onClick={onClose}
         >
           <div className="w-10 h-1 bg-moss rounded-full" />
         </div>
 
-        <div className="overflow-y-auto px-5 pb-12 flex flex-col gap-5">
-          <h2 className="font-serif text-dark text-xl pt-2">
+        {/* Sticky sheet header */}
+        <div className="flex items-center justify-between px-5 pb-4 flex-shrink-0
+                        border-b border-moss/20">
+          <h2 className="font-serif text-dark text-xl">
             {zone?.id ? 'Edit zone' : 'New garden zone'}
           </h2>
+          <button
+            onClick={onClose}
+            className="text-sm text-subtle font-medium active:opacity-60 transition-opacity"
+          >
+            Cancel
+          </button>
+        </div>
+
+        {/* Scrollable form body */}
+        <div className="flex-1 overflow-y-auto px-5 py-5 flex flex-col gap-5">
 
           {/* Name */}
           <div className="flex flex-col gap-1.5">
@@ -184,7 +195,8 @@ function ZoneSheet({ zone, onSave, onClose }) {
             <label className="text-[10px] text-subtle uppercase tracking-widest font-medium">
               Aspect — which direction does it face?
             </label>
-            <PillGroup options={ASPECTS} value={form.aspect} onChange={v => set('aspect', v)} />
+            <PillGroup options={ASPECTS} value={form.aspect}
+              onChange={v => set('aspect', v)} />
           </div>
 
           {/* Sun exposure */}
@@ -192,7 +204,8 @@ function ZoneSheet({ zone, onSave, onClose }) {
             <label className="text-[10px] text-subtle uppercase tracking-widest font-medium">
               Sun exposure
             </label>
-            <PillGroup options={SUN} value={form.sun_exposure} onChange={v => set('sun_exposure', v)} />
+            <PillGroup options={SUN} value={form.sun_exposure}
+              onChange={v => set('sun_exposure', v)} />
           </div>
 
           {/* Soil type */}
@@ -200,7 +213,8 @@ function ZoneSheet({ zone, onSave, onClose }) {
             <label className="text-[10px] text-subtle uppercase tracking-widest font-medium">
               Soil type
             </label>
-            <PillGroup options={SOILS} value={form.soil_type} onChange={v => set('soil_type', v)} />
+            <PillGroup options={SOILS} value={form.soil_type}
+              onChange={v => set('soil_type', v)} />
           </div>
 
           {/* Soil drainage */}
@@ -208,7 +222,8 @@ function ZoneSheet({ zone, onSave, onClose }) {
             <label className="text-[10px] text-subtle uppercase tracking-widest font-medium">
               Soil drainage
             </label>
-            <PillGroup options={DRAINAGE} value={form.soil_drainage} onChange={v => set('soil_drainage', v)} />
+            <PillGroup options={DRAINAGE} value={form.soil_drainage}
+              onChange={v => set('soil_drainage', v)} />
           </div>
 
           {/* Shelter */}
@@ -216,10 +231,11 @@ function ZoneSheet({ zone, onSave, onClose }) {
             <label className="text-[10px] text-subtle uppercase tracking-widest font-medium">
               Shelter
             </label>
-            <PillGroup options={SHELTER} value={form.shelter} onChange={v => set('shelter', v)} />
+            <PillGroup options={SHELTER} value={form.shelter}
+              onChange={v => set('shelter', v)} />
           </div>
 
-          {/* Frost pocket */}
+          {/* Frost pocket toggle */}
           <div className="flex items-center justify-between bg-white border
                           border-moss/40 rounded-xl px-4 py-3">
             <div>
@@ -260,26 +276,19 @@ function ZoneSheet({ zone, onSave, onClose }) {
           {error && (
             <p className="text-sm text-clay">{error}</p>
           )}
+        </div>
 
-          {/* Actions */}
-          <div className="flex gap-2">
-            <button
-              onClick={onClose}
-              className="flex-1 bg-leaf text-fern text-sm font-medium
-                         py-3 rounded-xl active:opacity-70 transition-opacity"
-            >
-              Cancel
-            </button>
-            <button
-              onClick={handleSave}
-              disabled={saving}
-              className="flex-1 bg-fern text-sage text-sm font-medium
-                         py-3 rounded-xl disabled:opacity-50
-                         active:opacity-80 transition-opacity"
-            >
-              {saving ? 'Saving…' : zone?.id ? 'Save changes' : 'Create zone'}
-            </button>
-          </div>
+        {/* Sticky footer — always visible above keyboard / nav */}
+        <div className="flex-shrink-0 px-5 py-4 border-t border-moss/20 bg-parchment">
+          <button
+            onClick={handleSave}
+            disabled={saving}
+            className="w-full bg-fern text-sage text-sm font-medium
+                       py-3.5 rounded-xl disabled:opacity-50
+                       active:opacity-80 transition-opacity"
+          >
+            {saving ? 'Saving…' : zone?.id ? 'Save changes' : 'Create zone'}
+          </button>
         </div>
       </div>
     </>
@@ -287,25 +296,51 @@ function ZoneSheet({ zone, onSave, onClose }) {
 }
 
 // ─── Delete confirmation ───────────────────────────────────────────────────────
-function DeleteConfirm({ zone, onConfirm, onCancel, deleting }) {
+function DeleteConfirm({ zone, plantCount, onConfirm, onCancel, deleting }) {
+  const hasPlants = plantCount > 0
+  const plantWord = plantCount === 1 ? 'plant' : 'plants'
+
   return (
     <>
       <div className="fixed inset-0 bg-dark/40 z-[60]" onClick={onCancel} />
       <div className="fixed bottom-0 left-0 right-0 max-w-md mx-auto
-                      bg-parchment rounded-t-2xl z-[70] px-5 pt-5 pb-10">
-        <div className="w-10 h-1 bg-moss rounded-full mx-auto mb-5" />
-        <p className="font-serif text-dark text-lg mb-1">Delete "{zone.name}"?</p>
-        <p className="text-sm text-subtle mb-5 leading-relaxed">
-          This zone will be removed. Plants saved to this zone won't be deleted —
-          they'll just lose their zone label.
-        </p>
-        <div className="flex gap-2">
+                      bg-parchment rounded-t-2xl z-[70] px-5 pt-4 pb-10">
+
+        {/* Handle */}
+        <div
+          className="flex justify-center pb-4 cursor-pointer"
+          onClick={onCancel}
+        >
+          <div className="w-10 h-1 bg-moss rounded-full" />
+        </div>
+
+        <p className="font-serif text-dark text-lg mb-2">Delete "{zone.name}"?</p>
+
+        {hasPlants ? (
+          <>
+            <div className="bg-clay/10 border border-clay/30 rounded-xl px-4 py-3 mb-4">
+              <p className="text-sm text-clay font-medium mb-1">
+                {plantCount} {plantWord} assigned to this zone
+              </p>
+              <p className="text-sm text-subtle leading-relaxed">
+                They won't be deleted — they'll be moved back to unallocated so you
+                can reassign them to another zone.
+              </p>
+            </div>
+          </>
+        ) : (
+          <p className="text-sm text-subtle mb-5 leading-relaxed">
+            This zone will be permanently removed.
+          </p>
+        )}
+
+        <div className="flex gap-2 mt-4">
           <button
             onClick={onCancel}
             className="flex-1 bg-leaf text-fern text-sm font-medium
                        py-3 rounded-xl active:opacity-70 transition-opacity"
           >
-            Cancel
+            Keep zone
           </button>
           <button
             onClick={onConfirm}
@@ -314,7 +349,11 @@ function DeleteConfirm({ zone, onConfirm, onCancel, deleting }) {
                        py-3 rounded-xl disabled:opacity-50
                        active:opacity-80 transition-opacity"
           >
-            {deleting ? 'Deleting…' : 'Delete zone'}
+            {deleting
+              ? 'Deleting…'
+              : hasPlants
+                ? `Delete & unallocate ${plantCount} ${plantWord}`
+                : 'Delete zone'}
           </button>
         </div>
       </div>
@@ -324,13 +363,13 @@ function DeleteConfirm({ zone, onConfirm, onCancel, deleting }) {
 
 // ─── Main screen ──────────────────────────────────────────────────────────────
 export default function GardenZones() {
-  const navigate          = useNavigate()
   const { user }          = useAuth()
   const [zones, setZones] = useState([])
-  const [loading, setLoading]   = useState(true)
-  const [editZone, setEditZone] = useState(null)   // zone object | 'new'
-  const [deleteZone, setDeleteZone] = useState(null)
-  const [deleting, setDeleting] = useState(false)
+  const [loading, setLoading]         = useState(true)
+  const [editZone, setEditZone]       = useState(null)  // zone object | 'new'
+  const [deleteZone, setDeleteZone]   = useState(null)
+  const [deletePlantCount, setDeletePlantCount] = useState(0)
+  const [deleting, setDeleting]       = useState(false)
 
   const fetchZones = async () => {
     setLoading(true)
@@ -353,12 +392,33 @@ export default function GardenZones() {
     fetchZones()
   }
 
+  // Fetch how many plants belong to this zone before showing the confirm dialog
+  const handleDeleteClick = async (zone) => {
+    const { count } = await supabase
+      .from('user_plants')
+      .select('id', { count: 'exact', head: true })
+      .eq('user_id', user.id)
+      .eq('location', zone.name)
+    setDeletePlantCount(count || 0)
+    setDeleteZone(zone)
+  }
+
   const handleDelete = async () => {
     if (!deleteZone) return
     setDeleting(true)
     try {
+      // Orphan plants first — set their location to null
+      if (deletePlantCount > 0) {
+        await supabase
+          .from('user_plants')
+          .update({ location: null })
+          .eq('user_id', user.id)
+          .eq('location', deleteZone.name)
+      }
+      // Then delete the zone
       await supabase.from('garden_zones').delete().eq('id', deleteZone.id)
       setDeleteZone(null)
+      setDeletePlantCount(0)
       fetchZones()
     } finally {
       setDeleting(false)
@@ -371,8 +431,8 @@ export default function GardenZones() {
 
       <main className="flex-1 p-4 flex flex-col gap-3">
 
-        {/* Header row */}
-        <div className="flex items-center justify-between mb-4">
+        {/* Page header */}
+        <div className="flex items-center justify-between">
           <div>
             <h1 className="font-serif text-dark text-xl">My Garden Zones</h1>
             <p className="text-xs text-subtle mt-0.5">
@@ -398,14 +458,12 @@ export default function GardenZones() {
           </div>
         ) : zones.length === 0 ? (
           <div className="flex flex-col items-center text-center py-16 gap-4 px-6">
-            <div className="w-16 h-16 bg-leaf rounded-full flex items-center
-                            justify-center">
-              {/* Simple compass/garden icon */}
+            <div className="w-16 h-16 bg-leaf rounded-full flex items-center justify-center">
               <svg width="32" height="32" viewBox="0 0 32 32" fill="none">
                 <circle cx="16" cy="16" r="12" stroke="#44593b" strokeWidth="1.5"/>
-                <line x1="16" y1="6" x2="16" y2="10" stroke="#44593b" strokeWidth="1.5" strokeLinecap="round"/>
+                <line x1="16" y1="6"  x2="16" y2="10" stroke="#44593b" strokeWidth="1.5" strokeLinecap="round"/>
                 <line x1="16" y1="22" x2="16" y2="26" stroke="#44593b" strokeWidth="1.5" strokeLinecap="round"/>
-                <line x1="6" y1="16" x2="10" y2="16" stroke="#44593b" strokeWidth="1.5" strokeLinecap="round"/>
+                <line x1="6"  y1="16" x2="10" y2="16" stroke="#44593b" strokeWidth="1.5" strokeLinecap="round"/>
                 <line x1="22" y1="16" x2="26" y2="16" stroke="#44593b" strokeWidth="1.5" strokeLinecap="round"/>
                 <circle cx="16" cy="16" r="2" fill="#44593b"/>
               </svg>
@@ -426,20 +484,19 @@ export default function GardenZones() {
             </button>
           </div>
         ) : (
-          <div className="flex flex-col gap-3 w-full">
+          <>
             {zones.map(zone => (
               <ZoneCard
                 key={zone.id}
                 zone={zone}
                 onEdit={z => setEditZone(z)}
-                onDelete={z => setDeleteZone(z)}
+                onDelete={handleDeleteClick}
               />
             ))}
-            <p className="text-xs text-subtle text-center pt-2 pb-4 leading-relaxed px-4">
-              Zone attributes like aspect and soil type will be used to match
-              plants to your garden in a future update.
+            <p className="text-xs text-subtle text-center pt-1 pb-2 leading-relaxed px-4">
+              Zone attributes will be used to match plants to your garden in a future update.
             </p>
-          </div>
+          </>
         )}
       </main>
 
@@ -456,8 +513,9 @@ export default function GardenZones() {
       {deleteZone && (
         <DeleteConfirm
           zone={deleteZone}
+          plantCount={deletePlantCount}
           onConfirm={handleDelete}
-          onCancel={() => setDeleteZone(null)}
+          onCancel={() => { setDeleteZone(null); setDeletePlantCount(0) }}
           deleting={deleting}
         />
       )}
