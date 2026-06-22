@@ -77,12 +77,12 @@ function MenuDrawer({ onClose }) {
     <>
       {/* Backdrop */}
       <div
-        className="fixed inset-0 bg-dark/40 z-50"
+        className="fixed inset-0 bg-dark/40 z-[60]"
         onClick={onClose}
       />
 
       {/* Drawer panel */}
-      <div className="fixed top-0 right-0 bottom-0 w-72 bg-parchment z-50
+      <div className="fixed top-0 right-0 bottom-0 w-72 bg-parchment z-[60]
                       flex flex-col shadow-2xl">
 
         {/* Profile header */}

@@ -150,8 +150,46 @@ function EmptyState({ filter, onScan }) {
 
 // ─── Plant detail sheet ───────────────────────────────────────────────────────
 // Slides up from bottom when a plant card is tapped.
-function PlantDetailSheet({ plant, onClose }) {
+function PlantDetailSheet({ plant, onClose, onUpdate }) {
+  const [editingZone, setEditingZone] = useState(false)
+  const [zones, setZones]             = useState([])
+  const [savingZone, setSavingZone]   = useState(false)
+
   if (!plant) return null
+
+  const openZoneEdit = async () => {
+    const { data: { user } } = await supabase.auth.getUser()
+    const { data } = await supabase
+      .from('garden_zones')
+      .select('id, name')
+      .eq('user_id', user.id)
+      .order('created_at', { ascending: true })
+    setZones(data || [])
+    setEditingZone(true)
+  }
+
+  const handleZoneSelect = async (zoneName) => {
+    setSavingZone(true)
+    try {
+      await supabase
+        .from('user_plants')
+        .update({ location: zoneName })
+        .eq('id', plant.id)
+      setEditingZone(false)
+      onUpdate()
+    } finally {
+      setSavingZone(false)
+    }
+  }
+
+  const facts = [
+    { label: 'Status',     value: plant.status },
+    { label: 'Added',      value: plant.date_added ? formatDate(plant.date_added) : null },
+    { label: 'Sun',        value: plant.sun_requirements },
+    { label: 'Soil',       value: plant.soil_type },
+    { label: 'Aspect',     value: plant.aspect },
+  ].filter(f => f.value)
+
   return (
     <>
       {/* Backdrop */}
@@ -196,26 +234,80 @@ function PlantDetailSheet({ plant, onClose }) {
         {/* Details */}
         <div className="px-4 pb-6 flex flex-col gap-3">
 
-          {/* Key facts */}
-          <div className="grid grid-cols-2 gap-2">
-            {[
-              { label: 'Location',   value: plant.location },
-              { label: 'Status',     value: plant.status },
-              { label: 'Added',      value: plant.date_added ? formatDate(plant.date_added) : null },
-              { label: 'Sun',        value: plant.sun_requirements },
-              { label: 'Soil',       value: plant.soil_type },
-              { label: 'Aspect',     value: plant.aspect },
-            ].filter(f => f.value).map(({ label, value }) => (
-              <div key={label} className="bg-leaf rounded-lg px-3 py-2">
-                <p className="text-[10px] text-subtle uppercase tracking-widest mb-0.5">
-                  {label}
-                </p>
-                <p className="text-sm text-dark font-medium capitalize">
-                  {value}
-                </p>
+          {/* Location row — editable */}
+          <div className="bg-leaf rounded-xl px-4 py-3">
+            <div className="flex items-center justify-between mb-0.5">
+              <p className="text-[10px] text-subtle uppercase tracking-widest">Zone</p>
+              {!editingZone && (
+                <button
+                  onClick={openZoneEdit}
+                  className="text-[10px] text-fern font-medium underline underline-offset-2
+                             active:opacity-60 transition-opacity"
+                >
+                  Edit
+                </button>
+              )}
+            </div>
+
+            {editingZone ? (
+              <div className="mt-2 flex flex-col gap-2">
+                <div className="flex flex-wrap gap-2">
+                  {zones.map(z => (
+                    <button
+                      key={z.id}
+                      disabled={savingZone}
+                      onClick={() => handleZoneSelect(z.name)}
+                      className={`text-xs px-3 py-1.5 rounded-full border font-medium
+                                  transition-colors disabled:opacity-50
+                                  ${plant.location === z.name
+                                    ? 'bg-fern text-sage border-fern'
+                                    : 'bg-white border-moss/40 text-dark'}`}
+                    >
+                      {z.name}
+                    </button>
+                  ))}
+                  <button
+                    disabled={savingZone}
+                    onClick={() => handleZoneSelect(null)}
+                    className={`text-xs px-3 py-1.5 rounded-full border font-medium
+                                transition-colors disabled:opacity-50
+                                ${!plant.location
+                                  ? 'bg-fern text-sage border-fern'
+                                  : 'bg-white border-moss/40 text-subtle'}`}
+                  >
+                    No zone
+                  </button>
+                </div>
+                <button
+                  onClick={() => setEditingZone(false)}
+                  className="text-xs text-subtle underline underline-offset-2 mt-1
+                             active:opacity-60 transition-opacity self-start"
+                >
+                  Cancel
+                </button>
               </div>
-            ))}
+            ) : (
+              <p className="text-sm text-dark font-medium">
+                {plant.location || <span className="text-subtle italic font-normal">No zone</span>}
+              </p>
+            )}
           </div>
+
+          {/* Other facts grid */}
+          {facts.length > 0 && (
+            <div className="grid grid-cols-2 gap-2">
+              {facts.map(({ label, value }) => (
+                <div key={label} className="bg-leaf rounded-lg px-3 py-2">
+                  <p className="text-[10px] text-subtle uppercase tracking-widest mb-0.5">
+                    {label}
+                  </p>
+                  <p className="text-sm text-dark font-medium capitalize">
+                    {value}
+                  </p>
+                </div>
+              ))}
+            </div>
+          )}
 
           {/* Care note */}
           {plant.care_notes && (
@@ -279,42 +371,43 @@ export default function Library() {
   }, [selectedPlant])
 
   // ── Fetch from Supabase ─────────────────────────────────────────────────────
-  useEffect(() => {
-    const fetchPlants = async () => {
-      setLoading(true)
-      try {
-        const { data: { user } } = await supabase.auth.getUser()
-        if (!user) return
-        const { data } = await supabase
-          .from('user_plants')
-          .select(`
-            id, location, personal_notes, date_added, status,
-            plants (
-              common_name, latin_name,
-              sun_requirements, soil_type, aspect, care_notes
-            )
-          `)
-          .eq('user_id', user.id)
-          .order('date_added', { ascending: false })
-        if (data) {
-          setPlants(data.map(row => ({
-            id:              row.id,
-            location:        row.location,
-            personal_notes:  row.personal_notes,
-            date_added:      row.date_added,
-            status:          row.status,
-            common_name:     row.plants?.common_name,
-            latin_name:      row.plants?.latin_name,
-            sun_requirements: row.plants?.sun_requirements,
-            soil_type:       row.plants?.soil_type,
-            aspect:          row.plants?.aspect,
-            care_notes:      row.plants?.care_notes,
-          })))
-        }
-      } finally {
-        setLoading(false)
+  const fetchPlants = async () => {
+    setLoading(true)
+    try {
+      const { data: { user } } = await supabase.auth.getUser()
+      if (!user) return
+      const { data } = await supabase
+        .from('user_plants')
+        .select(`
+          id, location, personal_notes, date_added, status,
+          plants (
+            common_name, latin_name,
+            sun_requirements, soil_type, aspect, care_notes
+          )
+        `)
+        .eq('user_id', user.id)
+        .order('date_added', { ascending: false })
+      if (data) {
+        setPlants(data.map(row => ({
+          id:              row.id,
+          location:        row.location,
+          personal_notes:  row.personal_notes,
+          date_added:      row.date_added,
+          status:          row.status,
+          common_name:     row.plants?.common_name,
+          latin_name:      row.plants?.latin_name,
+          sun_requirements: row.plants?.sun_requirements,
+          soil_type:       row.plants?.soil_type,
+          aspect:          row.plants?.aspect,
+          care_notes:      row.plants?.care_notes,
+        })))
       }
+    } finally {
+      setLoading(false)
     }
+  }
+
+  useEffect(() => {
     fetchPlants()
   }, [])
 
@@ -453,6 +546,7 @@ export default function Library() {
       <PlantDetailSheet
         plant={selectedPlant}
         onClose={() => setPlant(null)}
+        onUpdate={() => { setPlant(null); fetchPlants() }}
       />
     </div>
   )

@@ -144,6 +144,14 @@ function ZoneSheet({ zone, onSave, onClose }) {
         const { error } = await supabase.from('garden_zones')
           .update(payload).eq('id', zone.id)
         if (error) throw error
+        // Cascade rename to any plants that reference the old zone name
+        if (payload.name !== zone.name) {
+          await supabase
+            .from('user_plants')
+            .update({ location: payload.name })
+            .eq('user_id', user.id)
+            .eq('location', zone.name)
+        }
       } else {
         const { error } = await supabase.from('garden_zones').insert(payload)
         if (error) throw error
