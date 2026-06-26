@@ -474,17 +474,30 @@ export default function Scan() {
     setShowZonePicker(false)
     try {
       // 1. Upsert plant into plants table
+      const p = result.plant
       const { data: plantRow, error: plantErr } = await supabase
         .from('plants')
         .upsert({
-          common_name:       result.plant.common_name,
-          latin_name:        result.plant.latin_name,
-          sun_requirements:  result.plant.sun_requirements,
-          soil_type:         result.plant.soil_type,
-          aspect:            result.plant.aspect,
-          flowering_season:  result.plant.flowering_season,
-          care_notes:        result.plant.care_notes,
-          photo_url:         result.plant.photo_url,
+          common_name:      p.common_name,
+          latin_name:       p.latin_name,
+          sun_requirements: p.sun_requirements,
+          soil_type:        p.soil_type,
+          aspect:           p.aspect,
+          height:           p.height           || null,
+          spread:           p.spread           || null,
+          flowering_season: p.flowering_season || null,
+          growth_rate:      p.growth_rate      || null,
+          frost_hardiness:  p.frost_hardiness  || null,
+          watering:         p.watering         || null,
+          pruning_when:     p.pruning_when     || null,
+          pruning_how:      p.pruning_how      || null,
+          winter_care:      p.winter_care      || null,
+          care_notes:       p.care_notes       || null,
+          wildlife_value:   p.wildlife_value   || null,
+          toxic:            p.toxic            || null,
+          notes_for_buyer:  p.notes_for_buyer  || null,
+          care_calendar:    p.care_calendar    || null,
+          photo_url:        p.photo_url        || null,
         }, { onConflict: 'latin_name' })
         .select()
         .single()

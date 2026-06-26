@@ -27,8 +27,13 @@ const PLANT_JSON_SCHEMA = `Return ONLY a valid JSON object in this exact format 
   "wildlife_value": "string or null — e.g. Attracts bees and butterflies",
   "toxic": "string or null — e.g. Toxic to dogs and cats, if not toxic use null",
   "suitable_for_uk": true,
-  "notes_for_buyer": "string or null — 1–2 sentences on what to look for when buying, best time to buy, common pitfalls"
-}`
+  "notes_for_buyer": "string or null — 1–2 sentences on what to look for when buying, best time to buy, common pitfalls",
+  "care_calendar": [
+    { "month": 1, "task": "string — short action verb e.g. Plan, Prune, Feed, Water, Mulch, Plant, Deadhead, Lift, Divide", "detail": "string — one sentence of practical instruction" }
+  ]
+}
+
+For care_calendar: include one entry per distinct task per month (1=Jan … 12=Dec). Only include months where a specific action is needed — omit months with nothing to do. A plant may have 2–3 entries in a month if multiple tasks are due. Keep tasks concise and UK-specific.`
 
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') {
@@ -56,7 +61,7 @@ Deno.serve(async (req) => {
       // ── Vision path: identify plant from photo or label ───────────────────
       message = await client.messages.create({
         model: 'claude-haiku-4-5-20251001',
-        max_tokens: 1024,
+        max_tokens: 2048,
         messages: [{
           role: 'user',
           content: [
@@ -85,7 +90,7 @@ ${PLANT_JSON_SCHEMA}`,
       // ── Name lookup path: research a plant by name ────────────────────────
       message = await client.messages.create({
         model: 'claude-haiku-4-5-20251001',
-        max_tokens: 1024,
+        max_tokens: 2048,
         messages: [{
           role: 'user',
           content: `You are a plant expert assistant for a UK gardening app called Sown.
