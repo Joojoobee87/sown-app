@@ -16,6 +16,7 @@
 
 import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
+import { supabase } from '../lib/supabase'
 import TopBar from '../components/TopBar'
 import SownIcon from '../components/SownIcon'
 
@@ -350,15 +351,35 @@ export default function Calendar() {
   const now      = new Date()
 
   // ── State ──────────────────────────────────────────────────────────────────
-  const [month, setMonth]         = useState(now.getMonth())
-  const [year, setYear]           = useState(now.getFullYear())
-  const [frostData, setFrostData] = useState(null)
-  const [location, setLocation]   = useState(DEFAULT_LOCATION)
-  const [showUpgrade, setUpgrade] = useState(false)
+  const [month, setMonth]           = useState(now.getMonth())
+  const [year, setYear]             = useState(now.getFullYear())
+  const [frostData, setFrostData]   = useState(null)
+  const [location, setLocation]     = useState(DEFAULT_LOCATION)
+  const [showUpgrade, setUpgrade]   = useState(false)
+  const [userPlants, setUserPlants] = useState([])
+  const [loading, setLoading]       = useState(true)
 
-  // ── Simulated Pro status ───────────────────────────────────────────────────
-  // Replace with real check from Supabase user profile:
-  // const isPro = user?.user_metadata?.is_pro || false
+  // ── Fetch user's plants with care calendars ────────────────────────────────
+  useEffect(() => {
+    const fetchPlants = async () => {
+      setLoading(true)
+      try {
+        const { data: { user } } = await supabase.auth.getUser()
+        if (!user) return
+        const { data } = await supabase
+          .from('user_plants')
+          .select('id, plants(common_name, latin_name, care_calendar)')
+          .eq('user_id', user.id)
+          .order('created_at', { ascending: true })
+        setUserPlants(data || [])
+      } finally {
+        setLoading(false)
+      }
+    }
+    fetchPlants()
+  }, [])
+
+  // ── Pro status (extend later from user_metadata.is_pro) ───────────────────
   const isPro = false
 
   // ── Fetch frost data (Open-Meteo — free, no key needed) ────────────────────
@@ -417,10 +438,8 @@ export default function Calendar() {
   }, [isPro])
 
   // ── Get tasks for the selected month ──────────────────────────────────────
-  // In production: fetch user_plants from Supabase, then look up care calendar
-  // for each plant × month. For now uses the sample calendar below.
   const isCurrentMonth = month === now.getMonth() && year === now.getFullYear()
-  const tasks = getTasksForMonth(month, SAMPLE_USER_PLANTS, isCurrentMonth)
+  const tasks = getTasksForMonth(month, userPlants, isCurrentMonth)
 
   // ── Group tasks by urgency ─────────────────────────────────────────────────
   const urgent   = tasks.filter(t => t.urgency === 'urgent')
@@ -438,13 +457,26 @@ export default function Calendar() {
     <div className="flex flex-col min-h-screen bg-parchment pb-20">
       <TopBar />
 
-      {/* Month navigator */}
-      <MonthNav month={month} year={year} onChange={handleMonthChange} />
+      {/* Loading skeleton */}
+      {loading && (
+        <div className="flex flex-col gap-3 px-4 pt-4">
+          {[1,2,3].map(i => (
+            <div key={i} className="h-16 bg-moss/10 rounded-xl animate-pulse" />
+          ))}
+        </div>
+      )}
 
-      {/* Month strip */}
-      <MonthStrip month={month} year={year} onChange={handleMonthChange} />
+      {!loading && (
+        <>
+          {/* Month navigator */}
+          <MonthNav month={month} year={year} onChange={handleMonthChange} />
 
-      <main className="flex-1 flex flex-col gap-3 px-4 pb-4">
+          {/* Month strip */}
+          <MonthStrip month={month} year={year} onChange={handleMonthChange} />
+        </>
+      )}
+
+      {!loading && <main className="flex-1 flex flex-col gap-3 px-4 pb-4">
 
         {/* Frost indicator */}
         <FrostIndicator
@@ -548,7 +580,7 @@ export default function Calendar() {
           </button>
         )}
 
-      </main>
+      </main>}
 
       {/* Upgrade sheet */}
       {showUpgrade && <UpgradeSheet onClose={() => setUpgrade(false)} />}
@@ -557,121 +589,37 @@ export default function Calendar() {
 }
 
 // ─── Care calendar logic ───────────────────────────────────────────────────────
-// In production this would be a proper lookup table stored in Supabase,
-// matching plant_id × month → list of care tasks.
-// For now uses a hard-coded calendar keyed by common name + month index.
+// Reads from the care_calendar JSONB column on the plants table.
+// Each entry: { month: 1–12, task: string, detail: string }
 
 function getTasksForMonth(month, userPlants, isCurrentMonth) {
-  const tasks = []
-  const now   = new Date()
-  const weekOfMonth = Math.ceil(now.getDate() / 7) // 1–5
+  const tasks       = []
+  const now         = new Date()
+  const weekOfMonth = Math.ceil(now.getDate() / 7)
+  const calMonth    = month + 1  // care_calendar uses 1-indexed months
 
-  userPlants.forEach(plant => {
-    const calendar = CARE_CALENDAR[plant.common_name]
-    if (!calendar) return
+  userPlants.forEach(row => {
+    const plant = row.plants
+    if (!plant?.care_calendar) return
 
-    const monthTasks = calendar[month]
-    if (!monthTasks || monthTasks.length === 0) return
+    const monthEntries = plant.care_calendar.filter(e => e.month === calMonth)
+    if (monthEntries.length === 0) return
 
-    monthTasks.forEach((task, idx) => {
-      // Urgency: if current month, first tasks are "urgent", rest "soon"
-      // If future month, all tasks are "upcoming"
+    monthEntries.forEach((entry, idx) => {
       let urgency = 'upcoming'
       if (isCurrentMonth) {
         urgency = (idx === 0 && weekOfMonth <= 2) ? 'urgent' : 'soon'
       }
-
       tasks.push({
-        id:         `${plant.common_name}-${month}-${idx}`,
+        id:         `${row.id}-${calMonth}-${idx}`,
         plant_name: plant.common_name,
-        action:     task.action,
-        detail:     task.detail,
+        action:     entry.task,
+        detail:     entry.detail,
         urgency,
       })
     })
   })
 
-  // Sort: urgent → soon → upcoming
   const order = { urgent: 0, soon: 1, upcoming: 2 }
   return tasks.sort((a, b) => order[a.urgency] - order[b.urgency])
-}
-
-// ─── Sample user plants ────────────────────────────────────────────────────────
-// Replace with a Supabase fetch from user_plants joined to plants:
-// const { data } = await supabase
-//   .from('user_plants')
-//   .select('*, plants(*)')
-//   .eq('user_id', user.id)
-const SAMPLE_USER_PLANTS = [
-  { id: '1', common_name: "Dahlia 'Bishop of Llandaff'" },
-  { id: '2', common_name: "Rosa 'Gertrude Jekyll'" },
-  { id: '3', common_name: 'Lavandula angustifolia' },
-  { id: '4', common_name: 'Hydrangea macrophylla' },
-  { id: '5', common_name: 'Allium Purple Sensation' },
-]
-
-// ─── Care calendar data ────────────────────────────────────────────────────────
-// Month index: 0=Jan, 1=Feb ... 11=Dec
-// In production store this in a Supabase table: plant_care_calendar
-// columns: plant_id, month, action, detail
-const CARE_CALENDAR = {
-  "Dahlia 'Bishop of Llandaff'": {
-    2:  [{ action: 'Check stored tubers', detail: 'Inspect tubers in storage for rot or shrivelling. Remove any damaged sections with a clean knife.' }],
-    3:  [{ action: 'Start tubers indoors', detail: 'Pot tubers in barely moist compost, eye-side up. Keep at 15°C until shoots appear.' }],
-    4:  [{ action: 'Pot on and grow on', detail: 'Once shoots are 5cm tall, pot on into larger containers. Keep frost-free.' }],
-    4:  [{ action: 'Plant out (late April)', detail: 'Plant out once last frost has passed. Stake tall varieties at planting time.' }],
-    5:  [{ action: 'Plant out tubers', detail: 'Plant in final position once frost risk has passed. 60–90cm spacing.' },
-         { action: 'Stake taller varieties', detail: 'Insert stakes at planting time to avoid root disturbance later.' }],
-    6:  [{ action: 'Feed fortnightly', detail: 'Apply a high-potash liquid feed every two weeks once buds form.' },
-         { action: 'Pinch out growing tip', detail: 'Pinch out the central growing tip to encourage bushy growth and more flowers.' }],
-    7:  [{ action: 'Deadhead regularly', detail: 'Remove spent blooms to keep new flowers coming. Cut back to a healthy leaf joint.' }],
-    8:  [{ action: 'Deadhead weekly', detail: 'Check plants twice a week in peak season. Deadhead and feed fortnightly.' }],
-    9:  [{ action: 'Deadhead and enjoy', detail: 'Continue deadheading. Dahlias peak in September — the best month for cutting.' }],
-    10: [{ action: 'Lift tubers after first frost', detail: 'Cut stems to 15cm. Lift tubers carefully, shake off soil, dry upside down for 2 weeks.' }],
-    11: [{ action: 'Store tubers for winter', detail: 'Pack dry tubers in barely moist compost or vermiculite. Store frost-free (5–10°C).' }],
-  },
-
-  "Rosa 'Gertrude Jekyll'": {
-    0:  [{ action: 'Winter prune if mild', detail: 'In mild winters, a light tidy-up now reduces wind rock. Hard prune in March.' }],
-    2:  [{ action: 'Hard prune', detail: 'Cut all stems back to 30–45cm, cutting just above an outward-facing bud at 45°.' },
-         { action: 'Feed after pruning', detail: 'Apply a balanced rose fertiliser around the base after pruning. Water in well.' }],
-    3:  [{ action: 'Mulch the base', detail: 'Apply a 5cm layer of well-rotted manure or garden compost around the base. Keeps moisture in.' }],
-    4:  [{ action: 'Watch for aphids', detail: 'Check new growth for aphid clusters. Squash by hand or spray with diluted washing-up liquid.' }],
-    5:  [{ action: 'Feed again', detail: 'Second feed with high-potash rose fertiliser as flower buds form. Do not feed after August.' }],
-    6:  [{ action: 'Deadhead first flush', detail: 'Remove spent blooms promptly to encourage a second flush. Cut to a five-leaflet leaf.' }],
-    7:  [{ action: 'Deadhead and check for blackspot', detail: 'Remove any yellowing or spotted leaves. Deadhead regularly through summer.' }],
-    8:  [{ action: 'Last feed of the season', detail: 'Final potash feed no later than mid-August. Later feeding promotes soft growth vulnerable to frost.' }],
-    11: [{ action: 'Reduce height by one third', detail: 'In November, reduce tall stems by about a third to reduce wind rock over winter.' }],
-  },
-
-  'Lavandula angustifolia': {
-    3:  [{ action: 'Light spring trim', detail: 'Remove any winter-damaged stems. Do not cut into old brown wood — lavender will not regrow from it.' }],
-    5:  [{ action: 'Watch for growth', detail: 'New shoots should be emerging from the base. Do not disturb roots.' }],
-    6:  [{ action: 'Enjoy the flowers', detail: 'Lavender is at its best this month. Cut stems for drying just as the buds begin to open.' }],
-    7:  [{ action: 'Cut for drying', detail: 'Harvest stems for drying when about half the flowers on the spike are open.' }],
-    8:  [{ action: 'Post-flowering trim', detail: 'After flowering, trim back by about one third using shears. Creates a compact shape for next year.' }],
-    9:  [{ action: 'Final tidy', detail: 'A light tidy now will keep the plant compact. Do not cut back hard in autumn.' }],
-  },
-
-  'Hydrangea macrophylla': {
-    2:  [{ action: 'Prune dead wood', detail: 'Remove dead stems back to healthy buds. Last year\'s flower heads protect new buds — remove now.' }],
-    3:  [{ action: 'Feed with balanced fertiliser', detail: 'Apply a slow-release balanced fertiliser to encourage strong growth.' }],
-    4:  [{ action: 'Mulch to retain moisture', detail: 'Hydrangeas need moisture. Apply a thick mulch of leaf mould or compost.' }],
-    5:  [{ action: 'Water in dry spells', detail: 'Do not let the plant dry out — wilting causes stress and reduced flowering.' }],
-    6:  [{ action: 'Enjoy the flowers', detail: 'Mophead hydrangeas flower from June. Blue flowers indicate acidic soil, pink indicates alkaline.' }],
-    7:  [{ action: 'Water regularly', detail: 'Water deeply twice a week in dry weather. Mulch helps retain moisture.' }],
-    8:  [{ action: 'Leave seed heads', detail: 'Leave fading flower heads on the plant over winter — they protect next year\'s buds from frost.' }],
-    9:  [{ action: 'Stop feeding', detail: 'Last feed of the year if needed. Feeding too late promotes soft growth vulnerable to frost.' }],
-  },
-
-  'Allium Purple Sensation': {
-    8:  [{ action: 'Order bulbs now', detail: 'If you haven\'t already, order bulbs for autumn planting. Choose firm, unblemished bulbs.' }],
-    9:  [{ action: 'Plant allium bulbs', detail: 'Plant 10cm deep, 15cm apart in well-drained soil. Pointed end up. Full sun position.' }],
-    10: [{ action: 'Finish planting', detail: 'Last chance to plant allium bulbs before the ground hardens. Label the spot.' }],
-    3:  [{ action: 'Watch for emerging shoots', detail: 'Blue-green shoots will emerge in spring. Do not disturb — leaves die back before flowering, which is normal.' }],
-    4:  [{ action: 'Leaves dying back — normal', detail: 'Allium leaves yellow and die back before the flowers open. This is completely normal. Do not remove.' }],
-    5:  [{ action: 'Enjoy the flowers', detail: 'Purple globes appear on long stems in May. Excellent for pollinators. Great for cutting.' }],
-    6:  [{ action: 'Allow seed heads to develop', detail: 'Leave spent flower heads — they look architectural and self-seed gently.' }],
-    7:  [{ action: 'Mark the position', detail: 'Once foliage has died back completely, mark where bulbs are so you don\'t dig through them.' }],
-  },
 }
