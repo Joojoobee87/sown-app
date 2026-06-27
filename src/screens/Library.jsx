@@ -201,6 +201,9 @@ function flattenPlantRow(row) {
 function PlantDetailSheet({ plant: initialPlant, onClose, onUpdate }) {
   const [plant, setPlant]                   = useState(initialPlant)
   const [editingZone, setEditingZone]       = useState(false)
+
+  // Sync when the parent selects a different plant
+  useEffect(() => { setPlant(initialPlant); setEditingZone(false) }, [initialPlant])
   const [zones, setZones]                   = useState([])
   const [savingZone, setSavingZone]         = useState(false)
   const [refreshing, setRefreshing]         = useState(false)
