@@ -35,6 +35,24 @@ const PLANT_JSON_SCHEMA = `Return ONLY a valid JSON object in this exact format 
 
 For care_calendar: include one entry per distinct task per month (1=Jan … 12=Dec). Only include months where a specific action is needed — omit months with nothing to do. A plant may have 2–3 entries in a month if multiple tasks are due. Keep tasks concise and UK-specific.`
 
+// ─── Wikipedia photo lookup ───────────────────────────────────────────────────
+async function fetchWikipediaPhoto(latinName: string): Promise<string | null> {
+  if (!latinName) return null
+  try {
+    // Wikipedia REST API uses underscores and is case-sensitive on first letter
+    const slug = latinName.trim().replace(/ /g, '_')
+    const res  = await fetch(
+      `https://en.wikipedia.org/api/rest_v1/page/summary/${encodeURIComponent(slug)}`,
+      { headers: { 'User-Agent': 'SownGardenApp/1.0 (https://sown.app)' } }
+    )
+    if (!res.ok) return null
+    const data = await res.json()
+    return data?.thumbnail?.source ?? null
+  } catch {
+    return null
+  }
+}
+
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') {
     return new Response('ok', { headers: corsHeaders })
@@ -119,6 +137,10 @@ ${PLANT_JSON_SCHEMA}`,
         throw new Error('Could not parse plant data from response')
       }
     }
+
+    // Fetch Wikipedia thumbnail by Latin name (best-effort, non-blocking)
+    const photoUrl = await fetchWikipediaPhoto(plantData.latin_name)
+    if (photoUrl) plantData.photo_url = photoUrl
 
     return new Response(JSON.stringify(plantData), {
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },

@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../context/AuthContext'
+import { requestPushPermission } from '../lib/pushNotifications'
 import TopBar from '../components/TopBar'
 
 // ─── Seasonal tips — shown when the user has plants ──────────────────────────
@@ -96,6 +97,13 @@ export default function Home() {
       }
     }
     fetchCounts()
+
+    // Request push notification permission once per browser (non-blocking)
+    const asked = localStorage.getItem('sown_push_asked')
+    if (!asked && 'Notification' in window && Notification.permission === 'default') {
+      localStorage.setItem('sown_push_asked', '1')
+      requestPushPermission()
+    }
   }, [])
 
   const hasPlants = !loading && plantCount !== null && plantCount > 0
