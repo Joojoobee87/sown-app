@@ -166,9 +166,40 @@ const EDGE_HDRS = {
   'apikey':        import.meta.env.VITE_SUPABASE_ANON_KEY,
 }
 
+// ─── Flatten a user_plants row into the shape PlantDetailSheet expects ────────
+function flattenPlantRow(row) {
+  return {
+    id:               row.id,
+    plant_id:         row.plant_id,
+    location:         row.location,
+    personal_notes:   row.personal_notes,
+    date_added:       row.date_added,
+    status:           row.status,
+    common_name:      row.plants?.common_name,
+    latin_name:       row.plants?.latin_name,
+    photo_url:        row.plants?.photo_url,
+    sun_requirements: row.plants?.sun_requirements,
+    soil_type:        row.plants?.soil_type,
+    aspect:           row.plants?.aspect,
+    height:           row.plants?.height,
+    spread:           row.plants?.spread,
+    flowering_season: row.plants?.flowering_season,
+    growth_rate:      row.plants?.growth_rate,
+    frost_hardiness:  row.plants?.frost_hardiness,
+    watering:         row.plants?.watering,
+    pruning_when:     row.plants?.pruning_when,
+    pruning_how:      row.plants?.pruning_how,
+    winter_care:      row.plants?.winter_care,
+    care_notes:       row.plants?.care_notes,
+    wildlife_value:   row.plants?.wildlife_value,
+    toxic:            row.plants?.toxic,
+  }
+}
+
 // ─── Plant detail sheet ───────────────────────────────────────────────────────
 // Slides up from bottom when a plant card is tapped.
-function PlantDetailSheet({ plant, onClose, onUpdate }) {
+function PlantDetailSheet({ plant: initialPlant, onClose, onUpdate }) {
+  const [plant, setPlant]                   = useState(initialPlant)
   const [editingZone, setEditingZone]       = useState(false)
   const [zones, setZones]                   = useState([])
   const [savingZone, setSavingZone]         = useState(false)
@@ -216,7 +247,24 @@ function PlantDetailSheet({ plant, onClose, onUpdate }) {
 
       if (error) throw error
       setRefreshStatus('ok')
-      setTimeout(() => { setRefreshStatus(null); onUpdate() }, 1200)
+      // Re-fetch the plant row so updated care info appears immediately in-place
+      const { data: freshRow } = await supabase
+        .from('user_plants')
+        .select(`
+          id, plant_id, location, personal_notes, date_added, status,
+          plants (
+            common_name, latin_name, photo_url,
+            sun_requirements, soil_type, aspect, height, spread,
+            flowering_season, growth_rate, frost_hardiness,
+            watering, pruning_when, pruning_how,
+            winter_care, care_notes, wildlife_value, toxic
+          )
+        `)
+        .eq('id', plant.id)
+        .single()
+      if (freshRow) setPlant(flattenPlantRow(freshRow))
+      onUpdate()
+      setTimeout(() => setRefreshStatus(null), 1200)
     } catch (err) {
       console.error('[Sown] Refresh care info failed:', err)
       setRefreshStatus('error')
@@ -244,6 +292,7 @@ function PlantDetailSheet({ plant, onClose, onUpdate }) {
         .from('user_plants')
         .update({ location: zoneName })
         .eq('id', plant.id)
+      setPlant(prev => ({ ...prev, location: zoneName }))
       setEditingZone(false)
       onUpdate()
     } finally {
@@ -743,7 +792,7 @@ export default function Library() {
       <PlantDetailSheet
         plant={selectedPlant}
         onClose={() => setPlant(null)}
-        onUpdate={() => { setPlant(null); fetchPlants() }}
+        onUpdate={fetchPlants}
       />
     </div>
   )
