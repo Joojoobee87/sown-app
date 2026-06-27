@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../context/AuthContext'
+import { requestPushPermission } from '../lib/pushNotifications'
 
 function BackIcon() {
   return (
@@ -259,6 +260,69 @@ function ChangePassword() {
   )
 }
 
+// ─── Notifications row ────────────────────────────────────────────────────────
+function NotificationsRow() {
+  const [permission, setPermission] = useState(
+    typeof Notification !== 'undefined' ? Notification.permission : 'unsupported'
+  )
+  const [enabling, setEnabling] = useState(false)
+
+  const supported = permission !== 'unsupported' &&
+                    'serviceWorker' in navigator &&
+                    !!import.meta.env.VITE_VAPID_PUBLIC_KEY
+
+  if (!supported) return null
+
+  const handleEnable = async () => {
+    setEnabling(true)
+    localStorage.setItem('sown_push_asked', '1')
+    localStorage.removeItem('sown_push_dismissed')
+    await requestPushPermission()
+    setPermission(Notification.permission)
+    setEnabling(false)
+  }
+
+  if (permission === 'granted') {
+    return (
+      <div className="flex justify-between items-center">
+        <span className="text-sm text-subtle">Garden reminders</span>
+        <span className="text-sm text-fern font-medium">Enabled</span>
+      </div>
+    )
+  }
+
+  if (permission === 'denied') {
+    return (
+      <div className="flex justify-between items-start gap-3">
+        <div>
+          <span className="text-sm text-subtle">Garden reminders</span>
+          <p className="text-xs text-subtle/60 mt-0.5 leading-relaxed">
+            Blocked in browser settings — enable notifications for this site to turn on reminders.
+          </p>
+        </div>
+        <span className="text-sm text-clay/70 font-medium flex-shrink-0">Blocked</span>
+      </div>
+    )
+  }
+
+  return (
+    <div className="flex justify-between items-center">
+      <div>
+        <span className="text-sm text-subtle">Garden reminders</span>
+        <p className="text-xs text-subtle/60 mt-0.5">Monthly tasks for your plants</p>
+      </div>
+      <button
+        onClick={handleEnable}
+        disabled={enabling}
+        className="text-sm text-fern font-medium underline underline-offset-2
+                   active:opacity-60 transition-opacity disabled:opacity-40"
+      >
+        {enabling ? 'Enabling…' : 'Enable'}
+      </button>
+    </div>
+  )
+}
+
 // ─── Main Profile screen ──────────────────────────────────────────────────────
 export default function Profile() {
   const navigate = useNavigate()
@@ -396,6 +460,8 @@ export default function Profile() {
               {user?.id?.slice(0, 8)}…
             </span>
           </div>
+          <div className="h-px bg-moss/15" />
+          <NotificationsRow />
         </div>
 
         {/* Danger zone */}
