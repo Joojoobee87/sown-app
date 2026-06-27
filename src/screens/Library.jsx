@@ -158,14 +158,72 @@ function EmptyState({ filter, onScan }) {
   )
 }
 
+// ─── Edge function helpers ────────────────────────────────────────────────────
+const EDGE_URL  = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/identify-plant`
+const EDGE_HDRS = {
+  'Content-Type':  'application/json',
+  'Authorization': `Bearer ${import.meta.env.VITE_SUPABASE_ANON_KEY}`,
+  'apikey':        import.meta.env.VITE_SUPABASE_ANON_KEY,
+}
+
 // ─── Plant detail sheet ───────────────────────────────────────────────────────
 // Slides up from bottom when a plant card is tapped.
 function PlantDetailSheet({ plant, onClose, onUpdate }) {
-  const [editingZone, setEditingZone] = useState(false)
-  const [zones, setZones]             = useState([])
-  const [savingZone, setSavingZone]   = useState(false)
+  const [editingZone, setEditingZone]       = useState(false)
+  const [zones, setZones]                   = useState([])
+  const [savingZone, setSavingZone]         = useState(false)
+  const [refreshing, setRefreshing]         = useState(false)
+  const [refreshStatus, setRefreshStatus]   = useState(null)  // 'ok' | 'error'
 
   if (!plant) return null
+
+  const handleRefresh = async () => {
+    const lookupName = plant.latin_name || plant.common_name
+    if (!lookupName || refreshing) return
+    setRefreshing(true)
+    setRefreshStatus(null)
+    try {
+      const res  = await fetch(EDGE_URL, {
+        method: 'POST', headers: EDGE_HDRS,
+        body: JSON.stringify({ name: lookupName }),
+      })
+      if (!res.ok) throw new Error('Edge function error')
+      const p = await res.json()
+      if (p.error) throw new Error(p.error)
+
+      const { error } = await supabase.from('plants').upsert({
+        common_name:      p.common_name,
+        latin_name:       p.latin_name,
+        sun_requirements: p.sun_requirements,
+        soil_type:        p.soil_type,
+        aspect:           p.aspect,
+        height:           p.height           || null,
+        spread:           p.spread           || null,
+        flowering_season: p.flowering_season || null,
+        growth_rate:      p.growth_rate      || null,
+        frost_hardiness:  p.frost_hardiness  || null,
+        watering:         p.watering         || null,
+        pruning_when:     p.pruning_when     || null,
+        pruning_how:      p.pruning_how      || null,
+        winter_care:      p.winter_care      || null,
+        care_notes:       p.care_notes       || null,
+        wildlife_value:   p.wildlife_value   || null,
+        toxic:            p.toxic            || null,
+        notes_for_buyer:  p.notes_for_buyer  || null,
+        care_calendar:    p.care_calendar    || null,
+        photo_url:        p.photo_url        || null,
+      }, { onConflict: 'latin_name' })
+
+      if (error) throw error
+      setRefreshStatus('ok')
+      setTimeout(() => { setRefreshStatus(null); onUpdate() }, 1200)
+    } catch {
+      setRefreshStatus('error')
+      setTimeout(() => setRefreshStatus(null), 3000)
+    } finally {
+      setRefreshing(false)
+    }
+  }
 
   const openZoneEdit = async () => {
     const { data: { user } } = await supabase.auth.getUser()
@@ -425,11 +483,42 @@ function PlantDetailSheet({ plant, onClose, onUpdate }) {
             </div>
           )}
 
+          {/* Refresh care info */}
+          <button
+            onClick={handleRefresh}
+            disabled={refreshing}
+            className="w-full border border-moss/40 bg-white text-subtle
+                       text-sm py-3 rounded-xl tracking-wide mt-1
+                       active:bg-leaf transition-colors
+                       disabled:opacity-50 flex items-center justify-center gap-2"
+          >
+            {refreshing ? (
+              <>
+                <span className="w-3.5 h-3.5 border-2 border-moss/30 border-t-fern
+                                 rounded-full animate-spin" />
+                Refreshing care info…
+              </>
+            ) : refreshStatus === 'ok' ? (
+              <span className="text-fern font-medium">Updated</span>
+            ) : refreshStatus === 'error' ? (
+              <span className="text-clay">Could not refresh — try again</span>
+            ) : (
+              <>
+                <svg width="13" height="13" viewBox="0 0 24 24" fill="none"
+                  stroke="currentColor" strokeWidth="2" strokeLinecap="round">
+                  <path d="M23 4v6h-6M1 20v-6h6"/>
+                  <path d="M3.51 9a9 9 0 0114.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0020.49 15"/>
+                </svg>
+                Refresh care info
+              </>
+            )}
+          </button>
+
           {/* Close button */}
           <button
             onClick={onClose}
             className="w-full bg-leaf text-fern text-sm font-medium
-                       py-3 rounded-xl tracking-wide mt-1
+                       py-3 rounded-xl tracking-wide
                        active:bg-moss/30 transition-colors"
           >
             Close
