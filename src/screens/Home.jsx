@@ -32,6 +32,50 @@ const QUOTES = [
   { text: "A society grows great when old men plant trees whose shade they know they shall never sit in.", author: "Greek proverb" },
 ]
 
+// ─── Push notification prompt card ───────────────────────────────────────────
+function PushPromptCard({ onEnable, onDismiss }) {
+  return (
+    <div className="bg-leaf border border-fern/30 rounded-xl p-4
+                    flex items-start gap-3">
+      {/* Bell icon */}
+      <div className="w-9 h-9 bg-fern/20 rounded-lg flex items-center
+                      justify-center flex-shrink-0 mt-0.5">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none"
+          stroke="#4A5940" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+          <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/>
+          <path d="M13.73 21a2 2 0 0 1-3.46 0"/>
+        </svg>
+      </div>
+
+      <div className="flex-1 min-w-0">
+        <p className="text-sm font-medium text-dark leading-snug">
+          Monthly garden reminders
+        </p>
+        <p className="text-xs text-subtle mt-0.5 leading-relaxed">
+          Get a notification on the 1st of each month with tasks for your plants.
+        </p>
+
+        <div className="flex gap-2 mt-3">
+          <button
+            onClick={onEnable}
+            className="flex-1 bg-fern text-sage text-xs font-medium
+                       py-2 rounded-lg active:opacity-80 transition-opacity"
+          >
+            Enable reminders
+          </button>
+          <button
+            onClick={onDismiss}
+            className="flex-1 bg-white/60 text-subtle text-xs font-medium
+                       py-2 rounded-lg active:opacity-70 transition-opacity"
+          >
+            Not now
+          </button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
 // ─── Weather placeholder ──────────────────────────────────────────────────────
 function WeatherCard() {
   const month = new Date().toLocaleString('en-GB', { month: 'long' })
@@ -64,6 +108,15 @@ export default function Home() {
   const [plantCount, setPlantCount] = useState(null)
   const [zoneCount, setZoneCount]   = useState(null)
   const [loading, setLoading]       = useState(true)
+
+  // Show soft push prompt if browser supports it and user hasn't been asked or dismissed
+  const [showPushPrompt, setShowPushPrompt] = useState(() => {
+    if (typeof window === 'undefined') return false
+    if (!('Notification' in window) || !('serviceWorker' in navigator)) return false
+    if (Notification.permission !== 'default') return false
+    if (localStorage.getItem('sown_push_asked') || localStorage.getItem('sown_push_dismissed')) return false
+    return !!(import.meta.env.VITE_VAPID_PUBLIC_KEY)
+  })
 
   // Prefer dedicated forename field; fall back to first word of full_name, then email prefix
   const forename  = user?.user_metadata?.forename || ''
@@ -98,13 +151,18 @@ export default function Home() {
     }
     fetchCounts()
 
-    // Request push notification permission once per browser (non-blocking)
-    const asked = localStorage.getItem('sown_push_asked')
-    if (!asked && 'Notification' in window && Notification.permission === 'default') {
-      localStorage.setItem('sown_push_asked', '1')
-      requestPushPermission()
-    }
   }, [])
+
+  const handleEnablePush = async () => {
+    setShowPushPrompt(false)
+    localStorage.setItem('sown_push_asked', '1')
+    await requestPushPermission()
+  }
+
+  const handleDismissPush = () => {
+    setShowPushPrompt(false)
+    localStorage.setItem('sown_push_dismissed', '1')
+  }
 
   const hasPlants = !loading && plantCount !== null && plantCount > 0
 
@@ -227,6 +285,14 @@ export default function Home() {
             <path d="M9 18l6-6-6-6"/>
           </svg>
         </button>
+
+        {/* Push notification soft prompt */}
+        {showPushPrompt && (
+          <PushPromptCard
+            onEnable={handleEnablePush}
+            onDismiss={handleDismissPush}
+          />
+        )}
 
         {/* Weather placeholder */}
         <WeatherCard />
