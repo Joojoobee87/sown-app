@@ -78,10 +78,20 @@ function PlantCard({ plant, onClick }) {
                  p-3 flex gap-3 items-start text-left
                  active:bg-leaf transition-colors"
     >
-      {/* Botanical thumbnail */}
+      {/* Photo or botanical thumbnail */}
       <div className="w-12 h-12 bg-leaf rounded-lg flex-shrink-0
-                      flex items-center justify-center">
-        <BotanicalThumb name={plant.common_name} />
+                      flex items-center justify-center overflow-hidden">
+        {plant.photo_url
+          ? <img
+              src={plant.photo_url}
+              alt={plant.common_name}
+              className="w-full h-full object-cover"
+              onError={e => { e.currentTarget.style.display = 'none'; e.currentTarget.nextSibling.style.display = 'flex' }}
+            />
+          : null}
+        <div className={`w-full h-full items-center justify-center ${plant.photo_url ? 'hidden' : 'flex'}`}>
+          <BotanicalThumb name={plant.common_name} />
+        </div>
       </div>
 
       {/* Plant info */}
@@ -212,23 +222,43 @@ function PlantDetailSheet({ plant, onClose, onUpdate }) {
         </div>
 
         {/* Header */}
-        <div className="bg-fern px-5 py-4 mx-3 rounded-xl mb-4">
-          <div className="flex items-center gap-3">
-            <div className="w-12 h-12 bg-dark/30 rounded-lg flex items-center
-                            justify-center flex-shrink-0">
-              <BotanicalThumb name={plant.common_name} color="#D4DCCA" />
-            </div>
-            <div className="flex-1 min-w-0">
-              <p className="font-serif text-sage text-base leading-tight">
-                {plant.common_name}
-              </p>
-              {plant.latin_name && (
-                <p className="text-xs text-moss italic mt-0.5">
-                  {plant.latin_name}
+        <div className="mx-3 mb-4 rounded-xl overflow-hidden">
+          {plant.photo_url ? (
+            <div className="relative">
+              <img
+                src={plant.photo_url}
+                alt={plant.common_name}
+                className="w-full h-36 object-cover"
+                onError={e => { e.currentTarget.parentElement.classList.add('hidden') }}
+              />
+              <div className="absolute inset-0 bg-gradient-to-t from-dark/70 to-transparent" />
+              <div className="absolute bottom-0 left-0 right-0 px-4 py-3">
+                <p className="font-serif text-sage text-base leading-tight">
+                  {plant.common_name}
                 </p>
-              )}
+                {plant.latin_name && (
+                  <p className="text-xs text-sage/70 italic mt-0.5">{plant.latin_name}</p>
+                )}
+              </div>
             </div>
-          </div>
+          ) : (
+            <div className="bg-fern px-5 py-4">
+              <div className="flex items-center gap-3">
+                <div className="w-12 h-12 bg-dark/30 rounded-lg flex items-center
+                                justify-center flex-shrink-0">
+                  <BotanicalThumb name={plant.common_name} color="#D4DCCA" />
+                </div>
+                <div className="flex-1 min-w-0">
+                  <p className="font-serif text-sage text-base leading-tight">
+                    {plant.common_name}
+                  </p>
+                  {plant.latin_name && (
+                    <p className="text-xs text-moss italic mt-0.5">{plant.latin_name}</p>
+                  )}
+                </div>
+              </div>
+            </div>
+          )}
         </div>
 
         {/* Details */}
@@ -381,7 +411,7 @@ export default function Library() {
         .select(`
           id, location, personal_notes, date_added, status,
           plants (
-            common_name, latin_name,
+            common_name, latin_name, photo_url,
             sun_requirements, soil_type, aspect, care_notes
           )
         `)
@@ -389,17 +419,18 @@ export default function Library() {
         .order('date_added', { ascending: false })
       if (data) {
         setPlants(data.map(row => ({
-          id:              row.id,
-          location:        row.location,
-          personal_notes:  row.personal_notes,
-          date_added:      row.date_added,
-          status:          row.status,
-          common_name:     row.plants?.common_name,
-          latin_name:      row.plants?.latin_name,
+          id:               row.id,
+          location:         row.location,
+          personal_notes:   row.personal_notes,
+          date_added:       row.date_added,
+          status:           row.status,
+          common_name:      row.plants?.common_name,
+          latin_name:       row.plants?.latin_name,
+          photo_url:        row.plants?.photo_url,
           sun_requirements: row.plants?.sun_requirements,
-          soil_type:       row.plants?.soil_type,
-          aspect:          row.plants?.aspect,
-          care_notes:      row.plants?.care_notes,
+          soil_type:        row.plants?.soil_type,
+          aspect:           row.plants?.aspect,
+          care_notes:       row.plants?.care_notes,
         })))
       }
     } finally {

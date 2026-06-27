@@ -107,21 +107,41 @@ function PlantProfileCard({ result, onSave, onDismiss, saving }) {
         </div>
 
         {/* Header */}
-        <div className="mx-3 bg-fern rounded-xl p-4 mb-4 flex items-center gap-3">
-          <div className="w-12 h-12 bg-dark/30 rounded-lg flex items-center
-                          justify-center flex-shrink-0">
-            <SownIcon size={28} fill="#D4DCCA" />
+        {plant.photo_url ? (
+          <div className="mx-3 mb-4 rounded-xl overflow-hidden relative">
+            <img
+              src={plant.photo_url}
+              alt={plant.common_name}
+              className="w-full h-36 object-cover"
+            />
+            <div className="absolute inset-0 bg-gradient-to-t from-dark/70 to-transparent" />
+            <div className="absolute top-2 right-2">
+              <div className="bg-dark/50 text-sage text-[10px] px-2 py-1 rounded-full">
+                {plant.source === 'label' ? 'label read' : `${Math.round(probability * 100)}% match`}
+              </div>
+            </div>
+            <div className="absolute bottom-0 left-0 right-0 px-4 py-3">
+              <p className="font-serif text-sage text-base leading-tight">{plant.common_name}</p>
+              <p className="text-xs text-sage/70 italic mt-0.5">{plant.latin_name}</p>
+            </div>
           </div>
-          <div className="flex-1 min-w-0">
-            <p className="font-serif text-sage text-base leading-tight">
-              {plant.common_name}
-            </p>
-            <p className="text-xs text-moss italic mt-0.5">{plant.latin_name}</p>
+        ) : (
+          <div className="mx-3 bg-fern rounded-xl p-4 mb-4 flex items-center gap-3">
+            <div className="w-12 h-12 bg-dark/30 rounded-lg flex items-center
+                            justify-center flex-shrink-0">
+              <SownIcon size={28} fill="#D4DCCA" />
+            </div>
+            <div className="flex-1 min-w-0">
+              <p className="font-serif text-sage text-base leading-tight">
+                {plant.common_name}
+              </p>
+              <p className="text-xs text-moss italic mt-0.5">{plant.latin_name}</p>
+            </div>
+            <div className="bg-dark/20 text-sage text-[10px] px-2 py-1 rounded-full flex-shrink-0">
+              {plant.source === 'label' ? 'label read' : `${Math.round(probability * 100)}% match`}
+            </div>
           </div>
-          <div className="bg-dark/20 text-sage text-[10px] px-2 py-1 rounded-full flex-shrink-0">
-            {plant.source === 'label' ? 'label read' : `${Math.round(probability * 100)}% match`}
-          </div>
-        </div>
+        )}
 
         <div className="px-4 pb-24 flex flex-col gap-3">
 
