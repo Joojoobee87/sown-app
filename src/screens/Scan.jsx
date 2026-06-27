@@ -589,6 +589,7 @@ export default function Scan() {
       setTimeout(() => navigate('/library'), 1200)
 
     } catch (err) {
+      console.error('[Sown] Save failed:', err)
       showToast('Could not save — please try again')
     } finally {
       setSaving(false)
