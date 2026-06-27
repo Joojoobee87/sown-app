@@ -274,7 +274,7 @@ function PlantDetailSheet({ plant: initialPlant, onClose, onUpdate }) {
         </div>
 
         {/* Details */}
-        <div className="px-4 pb-6 flex flex-col gap-3">
+        <div className="px-4 pb-24 flex flex-col gap-3">
 
           {/* Location row — editable */}
           <div className="bg-leaf rounded-xl px-4 py-3">
