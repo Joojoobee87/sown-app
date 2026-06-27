@@ -20,6 +20,23 @@ import { supabase } from '../lib/supabase'
 import TopBar from '../components/TopBar'
 import SownIcon from '../components/SownIcon'
 
+// ─── Wikipedia photo lookup (client-side for reliable external access) ────────
+async function fetchWikipediaPhoto(latinName) {
+  if (!latinName) return null
+  const lookup = async (name) => {
+    try {
+      const slug = name.trim().replace(/ /g, '_')
+      const res = await fetch(
+        `https://en.wikipedia.org/api/rest_v1/page/summary/${encodeURIComponent(slug)}`
+      )
+      if (!res.ok) return null
+      const data = await res.json()
+      return data?.thumbnail?.source ?? null
+    } catch { return null }
+  }
+  return (await lookup(latinName)) ?? (await lookup(latinName.split(' ')[0]))
+}
+
 // ─── Scan icon — corner-bracket viewfinder with a small leaf centre ──────────
 function ScanIcon({ size = 20, stroke = 'currentColor' }) {
   return (
@@ -495,6 +512,8 @@ export default function Scan() {
     try {
       // 1. Upsert plant into plants table
       const p = result.plant
+      // Fetch photo client-side — more reliable than inside the edge function
+      const photoUrl = p.photo_url || await fetchWikipediaPhoto(p.latin_name)
       const { data: plantRow, error: plantErr } = await supabase
         .from('plants')
         .upsert({
@@ -517,7 +536,7 @@ export default function Scan() {
           toxic:            p.toxic            || null,
           notes_for_buyer:  p.notes_for_buyer  || null,
           care_calendar:    p.care_calendar    || null,
-          photo_url:        p.photo_url        || null,
+          photo_url:        photoUrl           || null,
         }, { onConflict: 'latin_name' })
         .select()
         .single()
