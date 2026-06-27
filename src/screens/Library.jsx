@@ -179,11 +179,11 @@ function PlantDetailSheet({ plant, onClose, onUpdate }) {
 
   const handleRefresh = async () => {
     const lookupName = plant.latin_name || plant.common_name
-    if (!lookupName || refreshing) return
+    if (!lookupName || !plant.plant_id || refreshing) return
     setRefreshing(true)
     setRefreshStatus(null)
     try {
-      const res  = await fetch(EDGE_URL, {
+      const res = await fetch(EDGE_URL, {
         method: 'POST', headers: EDGE_HDRS,
         body: JSON.stringify({ name: lookupName }),
       })
@@ -191,28 +191,29 @@ function PlantDetailSheet({ plant, onClose, onUpdate }) {
       const p = await res.json()
       if (p.error) throw new Error(p.error)
 
-      const { error } = await supabase.from('plants').upsert({
+      // Update the specific plants row we know about — no upsert ambiguity
+      const { error } = await supabase.from('plants').update({
         common_name:      p.common_name,
         latin_name:       p.latin_name,
-        sun_requirements: p.sun_requirements,
-        soil_type:        p.soil_type,
-        aspect:           p.aspect,
-        height:           p.height           || null,
-        spread:           p.spread           || null,
-        flowering_season: p.flowering_season || null,
-        growth_rate:      p.growth_rate      || null,
-        frost_hardiness:  p.frost_hardiness  || null,
-        watering:         p.watering         || null,
-        pruning_when:     p.pruning_when     || null,
-        pruning_how:      p.pruning_how      || null,
-        winter_care:      p.winter_care      || null,
-        care_notes:       p.care_notes       || null,
-        wildlife_value:   p.wildlife_value   || null,
-        toxic:            p.toxic            || null,
-        notes_for_buyer:  p.notes_for_buyer  || null,
-        care_calendar:    p.care_calendar    || null,
-        photo_url:        p.photo_url        || null,
-      }, { onConflict: 'latin_name' })
+        sun_requirements: p.sun_requirements      || null,
+        soil_type:        p.soil_type             || null,
+        aspect:           p.aspect                || null,
+        height:           p.height                || null,
+        spread:           p.spread                || null,
+        flowering_season: p.flowering_season      || null,
+        growth_rate:      p.growth_rate           || null,
+        frost_hardiness:  p.frost_hardiness       || null,
+        watering:         p.watering              || null,
+        pruning_when:     p.pruning_when          || null,
+        pruning_how:      p.pruning_how           || null,
+        winter_care:      p.winter_care           || null,
+        care_notes:       p.care_notes            || null,
+        wildlife_value:   p.wildlife_value        || null,
+        toxic:            p.toxic                 || null,
+        notes_for_buyer:  p.notes_for_buyer       || null,
+        care_calendar:    p.care_calendar         || null,
+        photo_url:        p.photo_url             || null,
+      }).eq('id', plant.plant_id)
 
       if (error) throw error
       setRefreshStatus('ok')
@@ -559,7 +560,7 @@ export default function Library() {
       const { data } = await supabase
         .from('user_plants')
         .select(`
-          id, location, personal_notes, date_added, status,
+          id, plant_id, location, personal_notes, date_added, status,
           plants (
             common_name, latin_name, photo_url,
             sun_requirements, soil_type, aspect, height, spread,
@@ -573,6 +574,7 @@ export default function Library() {
       if (data) {
         setPlants(data.map(row => ({
           id:               row.id,
+          plant_id:         row.plant_id,
           location:         row.location,
           personal_notes:   row.personal_notes,
           date_added:       row.date_added,
