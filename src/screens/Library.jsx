@@ -2,7 +2,7 @@
 // Sown App — My Garden Library screen
 // Paste this file into src/screens/Library.jsx
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { supabase } from '../lib/supabase'
 import TopBar from '../components/TopBar'
@@ -158,118 +158,25 @@ function EmptyState({ filter, onScan }) {
   )
 }
 
-// ─── Edge function helpers ────────────────────────────────────────────────────
-const EDGE_URL  = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/identify-plant`
-const EDGE_HDRS = {
-  'Content-Type':  'application/json',
-  'Authorization': `Bearer ${import.meta.env.VITE_SUPABASE_ANON_KEY}`,
-  'apikey':        import.meta.env.VITE_SUPABASE_ANON_KEY,
-}
-
-// ─── Flatten a user_plants row into the shape PlantDetailSheet expects ────────
-function flattenPlantRow(row) {
-  return {
-    id:               row.id,
-    plant_id:         row.plant_id,
-    location:         row.location,
-    personal_notes:   row.personal_notes,
-    date_added:       row.date_added,
-    status:           row.status,
-    common_name:      row.plants?.common_name,
-    latin_name:       row.plants?.latin_name,
-    photo_url:        row.plants?.photo_url,
-    sun_requirements: row.plants?.sun_requirements,
-    soil_type:        row.plants?.soil_type,
-    aspect:           row.plants?.aspect,
-    height:           row.plants?.height,
-    spread:           row.plants?.spread,
-    flowering_season: row.plants?.flowering_season,
-    growth_rate:      row.plants?.growth_rate,
-    frost_hardiness:  row.plants?.frost_hardiness,
-    watering:         row.plants?.watering,
-    pruning_when:     row.plants?.pruning_when,
-    pruning_how:      row.plants?.pruning_how,
-    winter_care:      row.plants?.winter_care,
-    care_notes:       row.plants?.care_notes,
-    wildlife_value:   row.plants?.wildlife_value,
-    toxic:            row.plants?.toxic,
-  }
-}
-
 // ─── Plant detail sheet ───────────────────────────────────────────────────────
 // Slides up from bottom when a plant card is tapped.
 function PlantDetailSheet({ plant: initialPlant, onClose, onUpdate }) {
-  const [plant, setPlant]                   = useState(initialPlant)
-  const [editingZone, setEditingZone]       = useState(false)
-  const [zones, setZones]                   = useState([])
-  const [savingZone, setSavingZone]         = useState(false)
-  const [refreshing, setRefreshing]         = useState(false)
-  const [refreshStatus, setRefreshStatus]   = useState(null)  // 'ok' | 'error'
+  const [plant, setPlant]         = useState(initialPlant)
+  const [editingZone, setEditingZone] = useState(false)
+  const [zones, setZones]         = useState([])
+  const [savingZone, setSavingZone]   = useState(false)
 
-  const handleRefresh = async () => {
-    const lookupName = plant.latin_name || plant.common_name
-    if (!lookupName || !plant.plant_id || refreshing) return
-    setRefreshing(true)
-    setRefreshStatus(null)
-    try {
-      const res = await fetch(EDGE_URL, {
-        method: 'POST', headers: EDGE_HDRS,
-        body: JSON.stringify({ name: lookupName }),
-      })
-      if (!res.ok) throw new Error('Edge function error')
-      const p = await res.json()
-      if (p.error) throw new Error(p.error)
-
-      // Update care data only on the specific plants row — never touch
-      // common_name or latin_name to avoid unique constraint conflicts
-      const { error } = await supabase.from('plants').update({
-        sun_requirements: p.sun_requirements || null,
-        soil_type:        p.soil_type        || null,
-        aspect:           p.aspect           || null,
-        height:           p.height           || null,
-        spread:           p.spread           || null,
-        flowering_season: p.flowering_season || null,
-        growth_rate:      p.growth_rate      || null,
-        frost_hardiness:  p.frost_hardiness  || null,
-        watering:         p.watering         || null,
-        pruning_when:     p.pruning_when     || null,
-        pruning_how:      p.pruning_how      || null,
-        winter_care:      p.winter_care      || null,
-        care_notes:       p.care_notes       || null,
-        wildlife_value:   p.wildlife_value   || null,
-        toxic:            p.toxic            || null,
-        notes_for_buyer:  p.notes_for_buyer  || null,
-        care_calendar:    p.care_calendar    || null,
-        photo_url:        p.photo_url        || null,
-      }).eq('id', plant.plant_id)
-
-      if (error) throw error
-      setRefreshStatus('ok')
-      // Re-fetch the plant row so updated care info appears immediately in-place
-      const { data: freshRow } = await supabase
-        .from('user_plants')
-        .select(`
-          id, plant_id, location, personal_notes, date_added, status,
-          plants (
-            common_name, latin_name, photo_url,
-            sun_requirements, soil_type, aspect, height, spread,
-            flowering_season, growth_rate, frost_hardiness,
-            watering, pruning_when, pruning_how,
-            winter_care, care_notes, wildlife_value, toxic
-          )
-        `)
-        .eq('id', plant.id)
-        .single()
-      if (freshRow) setPlant(flattenPlantRow(freshRow))
-      onUpdate()
-      setTimeout(() => setRefreshStatus(null), 1200)
-    } catch (err) {
-      console.error('[Sown] Refresh care info failed:', err)
-      setRefreshStatus('error')
-      setTimeout(() => setRefreshStatus(null), 3000)
-    } finally {
-      setRefreshing(false)
-    }
+  // Swipe-down-to-close
+  const touchStartY = useRef(null)
+  const [dragY, setDragY] = useState(0)
+  const handleTouchStart = (e) => { touchStartY.current = e.touches[0].clientY }
+  const handleTouchMove  = (e) => {
+    const dy = e.touches[0].clientY - touchStartY.current
+    if (dy > 0) setDragY(dy)
+  }
+  const handleTouchEnd = () => {
+    if (dragY > 80) { onClose(); return }
+    setDragY(0)
   }
 
   const openZoneEdit = async () => {
@@ -301,16 +208,23 @@ function PlantDetailSheet({ plant: initialPlant, onClose, onUpdate }) {
   return (
     <>
       {/* Backdrop */}
-      <div
-        className="fixed inset-0 bg-dark/40 z-40"
-        onClick={onClose}
-      />
-      {/* Sheet */}
-      <div className="fixed bottom-0 left-0 right-0 max-w-md mx-auto
-                      bg-parchment rounded-t-2xl z-50 max-h-[85vh]
-                      overflow-y-auto">
+      <div className="fixed inset-0 bg-dark/40 z-40" onClick={onClose} />
 
-        {/* Handle — tap to dismiss */}
+      {/* Sheet */}
+      <div
+        className="fixed bottom-0 left-0 right-0 max-w-md mx-auto
+                   bg-parchment rounded-t-2xl z-50 max-h-[85vh]
+                   overflow-y-auto"
+        style={{
+          transform: dragY > 0 ? `translateY(${dragY}px)` : undefined,
+          transition: dragY > 0 ? 'none' : 'transform 0.25s ease',
+        }}
+        onTouchStart={handleTouchStart}
+        onTouchMove={handleTouchMove}
+        onTouchEnd={handleTouchEnd}
+      >
+
+        {/* Handle — tap or swipe down to dismiss */}
         <div
           className="flex justify-center pt-3 pb-1 sticky top-0
                      bg-parchment z-10 cursor-pointer"
@@ -530,37 +444,6 @@ function PlantDetailSheet({ plant: initialPlant, onClose, onUpdate }) {
               </p>
             </div>
           )}
-
-          {/* Refresh care info */}
-          <button
-            onClick={handleRefresh}
-            disabled={refreshing}
-            className="w-full border border-moss/40 bg-white text-subtle
-                       text-sm py-3 rounded-xl tracking-wide mt-1
-                       active:bg-leaf transition-colors
-                       disabled:opacity-50 flex items-center justify-center gap-2"
-          >
-            {refreshing ? (
-              <>
-                <span className="w-3.5 h-3.5 border-2 border-moss/30 border-t-fern
-                                 rounded-full animate-spin" />
-                Refreshing care info…
-              </>
-            ) : refreshStatus === 'ok' ? (
-              <span className="text-fern font-medium">Updated</span>
-            ) : refreshStatus === 'error' ? (
-              <span className="text-clay">Could not refresh — try again</span>
-            ) : (
-              <>
-                <svg width="13" height="13" viewBox="0 0 24 24" fill="none"
-                  stroke="currentColor" strokeWidth="2" strokeLinecap="round">
-                  <path d="M23 4v6h-6M1 20v-6h6"/>
-                  <path d="M3.51 9a9 9 0 0114.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0020.49 15"/>
-                </svg>
-                Refresh care info
-              </>
-            )}
-          </button>
 
           {/* Close button */}
           <button
@@ -786,7 +669,6 @@ export default function Library() {
 
       </main>
 
-      {/* Plant detail sheet — key forces fresh mount per plant so useState initialises correctly */}
       {selectedPlant && (
         <PlantDetailSheet
           key={selectedPlant.id}
