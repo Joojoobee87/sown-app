@@ -166,7 +166,7 @@ function PlantDetailSheet({ plant: initialPlant, onClose, onUpdate }) {
   const [zones, setZones]         = useState([])
   const [savingZone, setSavingZone]   = useState(false)
 
-  // Swipe-down-to-close
+  // Swipe-down-to-close — handle bar only, so it doesn't fight page scroll
   const touchStartY = useRef(null)
   const [dragY, setDragY] = useState(0)
   const handleTouchStart = (e) => { touchStartY.current = e.touches[0].clientY }
@@ -175,8 +175,23 @@ function PlantDetailSheet({ plant: initialPlant, onClose, onUpdate }) {
     if (dy > 0) setDragY(dy)
   }
   const handleTouchEnd = () => {
-    if (dragY > 80) { onClose(); return }
+    if (dragY > 60) { onClose(); return }
     setDragY(0)
+  }
+
+  // Delete from library (user_plants only — shared plants row is kept)
+  const [confirmDelete, setConfirmDelete] = useState(false)
+  const [deleting, setDeleting] = useState(false)
+  const handleDelete = async () => {
+    if (!confirmDelete) { setConfirmDelete(true); return }
+    setDeleting(true)
+    try {
+      await supabase.from('user_plants').delete().eq('id', plant.id)
+      onUpdate()
+      onClose()
+    } finally {
+      setDeleting(false)
+    }
   }
 
   const openZoneEdit = async () => {
@@ -219,16 +234,16 @@ function PlantDetailSheet({ plant: initialPlant, onClose, onUpdate }) {
           transform: dragY > 0 ? `translateY(${dragY}px)` : undefined,
           transition: dragY > 0 ? 'none' : 'transform 0.25s ease',
         }}
-        onTouchStart={handleTouchStart}
-        onTouchMove={handleTouchMove}
-        onTouchEnd={handleTouchEnd}
       >
 
-        {/* Handle — tap or swipe down to dismiss */}
+        {/* Handle — touch events here only so swipe doesn't fight scroll */}
         <div
           className="flex justify-center pt-3 pb-1 sticky top-0
                      bg-parchment z-10 cursor-pointer"
           onClick={onClose}
+          onTouchStart={handleTouchStart}
+          onTouchMove={handleTouchMove}
+          onTouchEnd={handleTouchEnd}
         >
           <div className="w-10 h-1 bg-moss rounded-full" />
         </div>
@@ -453,6 +468,21 @@ function PlantDetailSheet({ plant: initialPlant, onClose, onUpdate }) {
                        active:bg-moss/30 transition-colors"
           >
             Close
+          </button>
+
+          {/* Remove from library */}
+          <button
+            onClick={handleDelete}
+            disabled={deleting}
+            className="w-full text-sm py-2 text-center disabled:opacity-40
+                       transition-colors"
+          >
+            {deleting
+              ? <span className="text-subtle">Removing…</span>
+              : confirmDelete
+              ? <span className="text-clay font-medium">Tap again to confirm removal</span>
+              : <span className="text-subtle/70">Remove from library</span>
+            }
           </button>
         </div>
       </div>
