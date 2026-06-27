@@ -201,15 +201,10 @@ function flattenPlantRow(row) {
 function PlantDetailSheet({ plant: initialPlant, onClose, onUpdate }) {
   const [plant, setPlant]                   = useState(initialPlant)
   const [editingZone, setEditingZone]       = useState(false)
-
-  // Sync when the parent selects a different plant
-  useEffect(() => { setPlant(initialPlant); setEditingZone(false) }, [initialPlant])
   const [zones, setZones]                   = useState([])
   const [savingZone, setSavingZone]         = useState(false)
   const [refreshing, setRefreshing]         = useState(false)
   const [refreshStatus, setRefreshStatus]   = useState(null)  // 'ok' | 'error'
-
-  if (!plant) return null
 
   const handleRefresh = async () => {
     const lookupName = plant.latin_name || plant.common_name
@@ -791,12 +786,15 @@ export default function Library() {
 
       </main>
 
-      {/* Plant detail sheet */}
-      <PlantDetailSheet
-        plant={selectedPlant}
-        onClose={() => setPlant(null)}
-        onUpdate={fetchPlants}
-      />
+      {/* Plant detail sheet — key forces fresh mount per plant so useState initialises correctly */}
+      {selectedPlant && (
+        <PlantDetailSheet
+          key={selectedPlant.id}
+          plant={selectedPlant}
+          onClose={() => setPlant(null)}
+          onUpdate={fetchPlants}
+        />
+      )}
     </div>
   )
 }
