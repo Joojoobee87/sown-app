@@ -38,19 +38,22 @@ For care_calendar: include one entry per distinct task per month (1=Jan … 12=D
 // ─── Wikipedia photo lookup ───────────────────────────────────────────────────
 async function fetchWikipediaPhoto(latinName: string): Promise<string | null> {
   if (!latinName) return null
-  try {
-    // Wikipedia REST API uses underscores and is case-sensitive on first letter
-    const slug = latinName.trim().replace(/ /g, '_')
-    const res  = await fetch(
-      `https://en.wikipedia.org/api/rest_v1/page/summary/${encodeURIComponent(slug)}`,
-      { headers: { 'User-Agent': 'SownGardenApp/1.0 (https://sown.app)' } }
-    )
-    if (!res.ok) return null
-    const data = await res.json()
-    return data?.thumbnail?.source ?? null
-  } catch {
-    return null
+  const lookup = async (name: string): Promise<string | null> => {
+    try {
+      const slug = name.trim().replace(/ /g, '_')
+      const res  = await fetch(
+        `https://en.wikipedia.org/api/rest_v1/page/summary/${encodeURIComponent(slug)}`,
+        { headers: { 'User-Agent': 'SownGardenApp/1.0 (https://sown.app)' } }
+      )
+      if (!res.ok) return null
+      const data = await res.json()
+      return data?.thumbnail?.source ?? null
+    } catch {
+      return null
+    }
   }
+  // Try full name first; fall back to genus (first word) for cultivars/hybrids
+  return (await lookup(latinName)) ?? (await lookup(latinName.split(' ')[0]))
 }
 
 Deno.serve(async (req) => {
