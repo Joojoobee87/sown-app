@@ -192,14 +192,6 @@ function PlantDetailSheet({ plant, onClose, onUpdate }) {
     }
   }
 
-  const facts = [
-    { label: 'Status',     value: plant.status },
-    { label: 'Added',      value: plant.date_added ? formatDate(plant.date_added) : null },
-    { label: 'Sun',        value: plant.sun_requirements },
-    { label: 'Soil',       value: plant.soil_type },
-    { label: 'Aspect',     value: plant.aspect },
-  ].filter(f => f.value)
-
   return (
     <>
       {/* Backdrop */}
@@ -323,32 +315,101 @@ function PlantDetailSheet({ plant, onClose, onUpdate }) {
             )}
           </div>
 
-          {/* Other facts grid */}
-          {facts.length > 0 && (
-            <div className="grid grid-cols-2 gap-2">
-              {facts.map(({ label, value }) => (
-                <div key={label} className="bg-leaf rounded-lg px-3 py-2">
-                  <p className="text-[10px] text-subtle uppercase tracking-widest mb-0.5">
-                    {label}
-                  </p>
-                  <p className="text-sm text-dark font-medium capitalize">
-                    {value}
-                  </p>
-                </div>
-              ))}
+          {/* Key facts grid */}
+          {(() => {
+            const facts = [
+              { label: 'Status',  value: plant.status },
+              { label: 'Added',   value: plant.date_added ? formatDate(plant.date_added) : null },
+              { label: 'Sun',     value: plant.sun_requirements },
+              { label: 'Soil',    value: plant.soil_type },
+              { label: 'Aspect',  value: plant.aspect },
+              { label: 'Height',  value: plant.height },
+              { label: 'Season',  value: plant.flowering_season },
+              { label: 'Frost',   value: plant.frost_hardiness },
+            ].filter(f => f.value)
+            return facts.length > 0 ? (
+              <div className="grid grid-cols-2 gap-2">
+                {facts.map(({ label, value }) => (
+                  <div key={label} className="bg-leaf rounded-lg px-3 py-2">
+                    <p className="text-[10px] text-subtle uppercase tracking-widest mb-0.5">
+                      {label}
+                    </p>
+                    <p className="text-sm text-dark font-medium capitalize">{value}</p>
+                  </div>
+                ))}
+              </div>
+            ) : null
+          })()}
+
+          {/* Watering */}
+          {plant.watering && (
+            <div className="bg-white border border-moss/40 rounded-xl px-4 py-3">
+              <p className="text-xs font-medium text-fern mb-1 tracking-wide uppercase">
+                Watering
+              </p>
+              <p className="text-sm text-muted leading-relaxed">{plant.watering}</p>
+            </div>
+          )}
+
+          {/* Pruning */}
+          {(plant.pruning_when || plant.pruning_how) && (
+            <div className="bg-white border border-moss/40 rounded-xl px-4 py-3">
+              <p className="text-xs font-medium text-fern mb-1 tracking-wide uppercase">
+                Pruning
+              </p>
+              {plant.pruning_when && (
+                <p className="text-sm text-muted leading-relaxed">
+                  <span className="font-medium text-dark">When: </span>
+                  {plant.pruning_when}
+                </p>
+              )}
+              {plant.pruning_how && (
+                <p className="text-sm text-muted leading-relaxed mt-0.5">
+                  <span className="font-medium text-dark">How: </span>
+                  {plant.pruning_how}
+                </p>
+              )}
+            </div>
+          )}
+
+          {/* Winter care */}
+          {plant.winter_care && (
+            <div className="bg-white border border-moss/40 rounded-xl px-4 py-3">
+              <p className="text-xs font-medium text-fern mb-1 tracking-wide uppercase">
+                Winter care
+              </p>
+              <p className="text-sm text-muted leading-relaxed">{plant.winter_care}</p>
             </div>
           )}
 
           {/* Care note */}
           {plant.care_notes && (
-            <div className="bg-white border border-moss/40 rounded-xl
-                            px-4 py-3 border-l-2 border-l-fern">
-              <p className="text-xs font-medium text-fern mb-1 tracking-wide">
+            <div className="bg-white border-l-2 border-l-fern border border-moss/40
+                            rounded-xl px-4 py-3">
+              <p className="text-xs font-medium text-fern mb-1 tracking-wide uppercase">
                 Care note
               </p>
-              <p className="text-sm text-muted leading-relaxed">
-                {plant.care_notes}
+              <p className="text-sm text-muted leading-relaxed">{plant.care_notes}</p>
+            </div>
+          )}
+
+          {/* Wildlife value */}
+          {plant.wildlife_value && (
+            <div className="bg-white border border-moss/40 rounded-xl px-4 py-3">
+              <p className="text-xs font-medium text-subtle mb-1 tracking-wide uppercase">
+                Wildlife value
               </p>
+              <p className="text-sm text-muted leading-relaxed">{plant.wildlife_value}</p>
+            </div>
+          )}
+
+          {/* Toxicity */}
+          {plant.toxic && (
+            <div className="bg-clay/10 border border-clay/40 rounded-xl px-4 py-3">
+              <p className="text-xs font-medium text-clay mb-1 tracking-wide">
+                ⚠ Toxicity
+              </p>
+              <p className="text-sm text-muted leading-relaxed">{plant.toxic}</p>
             </div>
           )}
 
@@ -412,7 +473,10 @@ export default function Library() {
           id, location, personal_notes, date_added, status,
           plants (
             common_name, latin_name, photo_url,
-            sun_requirements, soil_type, aspect, care_notes
+            sun_requirements, soil_type, aspect, height, spread,
+            flowering_season, growth_rate, frost_hardiness,
+            watering, pruning_when, pruning_how,
+            winter_care, care_notes, wildlife_value, toxic
           )
         `)
         .eq('user_id', user.id)
@@ -430,7 +494,18 @@ export default function Library() {
           sun_requirements: row.plants?.sun_requirements,
           soil_type:        row.plants?.soil_type,
           aspect:           row.plants?.aspect,
+          height:           row.plants?.height,
+          spread:           row.plants?.spread,
+          flowering_season: row.plants?.flowering_season,
+          growth_rate:      row.plants?.growth_rate,
+          frost_hardiness:  row.plants?.frost_hardiness,
+          watering:         row.plants?.watering,
+          pruning_when:     row.plants?.pruning_when,
+          pruning_how:      row.plants?.pruning_how,
+          winter_care:      row.plants?.winter_care,
           care_notes:       row.plants?.care_notes,
+          wildlife_value:   row.plants?.wildlife_value,
+          toxic:            row.plants?.toxic,
         })))
       }
     } finally {
