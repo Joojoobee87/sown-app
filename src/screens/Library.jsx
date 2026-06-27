@@ -191,34 +191,34 @@ function PlantDetailSheet({ plant, onClose, onUpdate }) {
       const p = await res.json()
       if (p.error) throw new Error(p.error)
 
-      // Update the specific plants row we know about — no upsert ambiguity
+      // Update care data only on the specific plants row — never touch
+      // common_name or latin_name to avoid unique constraint conflicts
       const { error } = await supabase.from('plants').update({
-        common_name:      p.common_name,
-        latin_name:       p.latin_name,
-        sun_requirements: p.sun_requirements      || null,
-        soil_type:        p.soil_type             || null,
-        aspect:           p.aspect                || null,
-        height:           p.height                || null,
-        spread:           p.spread                || null,
-        flowering_season: p.flowering_season      || null,
-        growth_rate:      p.growth_rate           || null,
-        frost_hardiness:  p.frost_hardiness       || null,
-        watering:         p.watering              || null,
-        pruning_when:     p.pruning_when          || null,
-        pruning_how:      p.pruning_how           || null,
-        winter_care:      p.winter_care           || null,
-        care_notes:       p.care_notes            || null,
-        wildlife_value:   p.wildlife_value        || null,
-        toxic:            p.toxic                 || null,
-        notes_for_buyer:  p.notes_for_buyer       || null,
-        care_calendar:    p.care_calendar         || null,
-        photo_url:        p.photo_url             || null,
+        sun_requirements: p.sun_requirements || null,
+        soil_type:        p.soil_type        || null,
+        aspect:           p.aspect           || null,
+        height:           p.height           || null,
+        spread:           p.spread           || null,
+        flowering_season: p.flowering_season || null,
+        growth_rate:      p.growth_rate      || null,
+        frost_hardiness:  p.frost_hardiness  || null,
+        watering:         p.watering         || null,
+        pruning_when:     p.pruning_when     || null,
+        pruning_how:      p.pruning_how      || null,
+        winter_care:      p.winter_care      || null,
+        care_notes:       p.care_notes       || null,
+        wildlife_value:   p.wildlife_value   || null,
+        toxic:            p.toxic            || null,
+        notes_for_buyer:  p.notes_for_buyer  || null,
+        care_calendar:    p.care_calendar    || null,
+        photo_url:        p.photo_url        || null,
       }).eq('id', plant.plant_id)
 
       if (error) throw error
       setRefreshStatus('ok')
       setTimeout(() => { setRefreshStatus(null); onUpdate() }, 1200)
-    } catch {
+    } catch (err) {
+      console.error('[Sown] Refresh care info failed:', err)
       setRefreshStatus('error')
       setTimeout(() => setRefreshStatus(null), 3000)
     } finally {
