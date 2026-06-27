@@ -104,21 +104,43 @@ function PlantProfileCard({ result, onSave, onDismiss, saving }) {
     { label: 'Frost',    value: plant.frost_hardiness },
   ].filter(f => f.value)
 
+  // Swipe-down-to-close on handle only
+  const touchStartY = useRef(null)
+  const [dragY, setDragY] = useState(0)
+  const handleTouchStart = (e) => { touchStartY.current = e.touches[0].clientY }
+  const handleTouchMove  = (e) => {
+    const dy = e.touches[0].clientY - touchStartY.current
+    if (dy > 0) setDragY(dy)
+  }
+  const handleTouchEnd = () => {
+    if (dragY > 60) { onDismiss(); return }
+    setDragY(0)
+  }
+
   return (
     <>
       {/* Backdrop */}
       <div className="fixed inset-0 bg-dark/50 z-40" onClick={onDismiss} />
 
       {/* Sheet */}
-      <div className="fixed bottom-0 left-0 right-0 max-w-md mx-auto
-                      bg-parchment rounded-t-2xl z-50 max-h-[85vh]
-                      overflow-y-auto">
+      <div
+        className="fixed bottom-0 left-0 right-0 max-w-md mx-auto
+                   bg-parchment rounded-t-2xl z-50 max-h-[85vh]
+                   overflow-y-auto"
+        style={{
+          transform: dragY > 0 ? `translateY(${dragY}px)` : undefined,
+          transition: dragY > 0 ? 'none' : 'transform 0.25s ease',
+        }}
+      >
 
-        {/* Handle — tap to dismiss */}
+        {/* Handle — tap or swipe down to dismiss */}
         <div
           className="flex justify-center pt-3 pb-2 sticky top-0
                      bg-parchment z-10 cursor-pointer"
           onClick={onDismiss}
+          onTouchStart={handleTouchStart}
+          onTouchMove={handleTouchMove}
+          onTouchEnd={handleTouchEnd}
         >
           <div className="w-10 h-1 bg-moss rounded-full" />
         </div>
@@ -439,6 +461,9 @@ export default function Scan() {
 
     try {
       const identified = await identifyPlant(base64)
+      // Fetch photo now so it shows in the card and is ready to save
+      const photoUrl = await fetchWikipediaPhoto(identified.plant.latin_name)
+      if (photoUrl) identified.plant.photo_url = photoUrl
       setResult(identified)
     } catch (err) {
       showToast('Could not identify plant — try again or search by name')
@@ -453,6 +478,8 @@ export default function Scan() {
     setLookingUp(true)
     try {
       const plant = await lookupPlantByName(plantName)
+      const photoUrl = await fetchWikipediaPhoto(plant.latin_name)
+      if (photoUrl) plant.photo_url = photoUrl
       setResult({ plant, probability: 1, addedAs: 'want to grow' })
     } catch (err) {
       console.error('[Sown] name lookup failed:', err)
@@ -512,8 +539,7 @@ export default function Scan() {
     try {
       // 1. Upsert plant into plants table
       const p = result.plant
-      // Fetch photo client-side — more reliable than inside the edge function
-      const photoUrl = p.photo_url || await fetchWikipediaPhoto(p.latin_name)
+      const photoUrl = p.photo_url || null
       const { data: plantRow, error: plantErr } = await supabase
         .from('plants')
         .upsert({
