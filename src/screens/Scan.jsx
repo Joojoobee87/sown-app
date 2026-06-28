@@ -590,7 +590,7 @@ export default function Scan() {
 
     } catch (err) {
       console.error('[Sown] Save failed:', err)
-      showToast('Could not save — please try again')
+      showToast(err?.message || JSON.stringify(err) || 'Could not save — please try again')
     } finally {
       setSaving(false)
     }
