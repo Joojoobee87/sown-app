@@ -407,6 +407,7 @@ export default function Calendar() {
   const [loading, setLoading]       = useState(true)
   const [completedKeys, setCompleted] = useState(new Set())
   const [toggling, setToggling]     = useState(null)
+  const [zoneFilter, setZoneFilter] = useState('All')
 
   // ── Fetch user's plants with care data ────────────────────────────────────
   useEffect(() => {
@@ -523,12 +524,19 @@ export default function Calendar() {
 
   // ── Tasks for selected month ───────────────────────────────────────────────
   const isCurrentMonth = month === now.getMonth() && year === now.getFullYear()
-  const tasks   = getTasksForMonth(month, userPlants, isCurrentMonth)
+  const allTasks = getTasksForMonth(month, userPlants, isCurrentMonth)
+
+  // Zone filter — derived from plants that have tasks this month
+  const zones = ['All', ...new Set(allTasks.map(t => t.location).filter(Boolean))]
+  const tasks = zoneFilter === 'All'
+    ? allTasks
+    : allTasks.filter(t => t.location === zoneFilter)
+
   const grouped = groupByCategory(tasks)
   const total   = tasks.length
   const done    = tasks.filter(t => completedKeys.has(completionKey(t))).length
 
-  const handleMonthChange = (m) => setMonth(m)
+  const handleMonthChange = (m) => { setMonth(m); setZoneFilter('All') }
 
   // ── Render ─────────────────────────────────────────────────────────────────
   return (
@@ -552,6 +560,27 @@ export default function Calendar() {
 
       {!loading && (
         <main className="flex-1 flex flex-col gap-3 px-4 pb-4">
+
+          {/* Zone filter — only shown when plants span more than one zone */}
+          {zones.length > 2 && (
+            <div className="flex gap-2 overflow-x-auto pb-1
+                            scrollbar-none [-ms-overflow-style:none]
+                            [&::-webkit-scrollbar]:hidden">
+              {zones.map(z => (
+                <button
+                  key={z}
+                  onClick={() => setZoneFilter(z)}
+                  className={`flex-shrink-0 text-xs px-3 py-1.5 rounded-full
+                              font-medium tracking-wide transition-colors
+                              ${zoneFilter === z
+                                ? 'bg-fern text-sage'
+                                : 'bg-white border border-moss/40 text-subtle'}`}
+                >
+                  {z}
+                </button>
+              ))}
+            </div>
+          )}
 
           {/* Frost indicator */}
           <FrostIndicator
