@@ -1,19 +1,3 @@
-// src/screens/Calendar.jsx
-// Sown App — Garden Calendar screen
-// Paste this file into src/screens/Calendar.jsx
-//
-// What this does:
-//   1. Shows personalised monthly care tasks based on the user's plant library
-//   2. Displays a month navigator to scroll through the year
-//   3. Groups tasks by plant with botanical illustration thumbnails
-//   4. Shows a live frost risk indicator via Open-Meteo API (free, no key needed)
-//   5. Highlights urgent tasks (this week) vs upcoming tasks
-//   6. Pro-only weather alerts shown with upgrade prompt for free users
-//
-// APIs used:
-//   Open-Meteo — free, no API key required
-//   https://open-meteo.com/
-
 import { useState, useEffect, useRef } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { supabase } from '../lib/supabase'
@@ -25,16 +9,47 @@ const MONTHS = [
   'January','February','March','April','May','June',
   'July','August','September','October','November','December'
 ]
-
 const SHORT_MONTHS = [
   'Jan','Feb','Mar','Apr','May','Jun',
   'Jul','Aug','Sep','Oct','Nov','Dec'
 ]
 
-// Leeds coordinates — replace with user's location from browser geolocation
-const DEFAULT_LAT = 53.8008
-const DEFAULT_LON = -1.5491
-const DEFAULT_LOCATION = 'Leeds'
+// ─── Category normalisation ────────────────────────────────────────────────────
+// Groups similar task verbs into display categories with an icon
+const CATEGORY_MAP = [
+  { key: 'Pruning',            icon: '✂️', test: a => /prun/i.test(a) },
+  { key: 'Watering',           icon: '💧', test: a => /water/i.test(a) },
+  { key: 'Deadheading',        icon: '🌸', test: a => /deadhead|dead head/i.test(a) },
+  { key: 'Feeding',            icon: '🌿', test: a => /feed|fertili/i.test(a) },
+  { key: 'Mulching',           icon: '🍂', test: a => /mulch/i.test(a) },
+  { key: 'Winter care',        icon: '❄️', test: a => /winter|protect/i.test(a) },
+  { key: 'Planting & sowing',  icon: '🌱', test: a => /plant|sow/i.test(a) },
+  { key: 'Lifting & dividing', icon: '🪴', test: a => /lift|divid/i.test(a) },
+  { key: 'Planning',           icon: '📋', test: a => /plan/i.test(a) },
+]
+
+function normaliseCategory(action = '') {
+  for (const { key, test } of CATEGORY_MAP) {
+    if (test(action)) return key
+  }
+  return action || 'Other'
+}
+
+function categoryIcon(cat) {
+  return CATEGORY_MAP.find(c => c.key === cat)?.icon ?? '🌿'
+}
+
+function groupByCategory(tasks) {
+  const groups = {}
+  tasks.forEach(t => {
+    const cat = normaliseCategory(t.action)
+    ;(groups[cat] ??= []).push(t)
+  })
+  return groups
+}
+
+// ─── Completion key (no year — fetched per year already) ──────────────────────
+const completionKey = (t) => `${t.user_plant_id}-${t.month}-${t.action}`
 
 // ─── Botanical thumbnail ──────────────────────────────────────────────────────
 function BotanicalThumb({ name = '', color = '#4A5940', size = 32 }) {
@@ -70,67 +85,80 @@ function BotanicalThumb({ name = '', color = '#4A5940', size = 32 }) {
   return variants[seed]
 }
 
-// ─── Urgency dot ──────────────────────────────────────────────────────────────
-function UrgencyBar({ urgency }) {
-  const styles = {
-    urgent:   'bg-clay',
-    soon:     'bg-moss',
-    upcoming: 'bg-subtle/40',
-  }
-  return <div className={`w-1 self-stretch rounded-full flex-shrink-0 ${styles[urgency] || 'bg-subtle/40'}`} />
-}
-
 // ─── Task card ────────────────────────────────────────────────────────────────
-function TaskCard({ task }) {
+function TaskCard({ task, isComplete, onToggle, toggling }) {
   const [expanded, setExpanded] = useState(false)
 
   return (
-    <button
-      onClick={() => setExpanded(e => !e)}
-      className="w-full bg-white border border-moss/40 rounded-xl
-                 p-3 flex gap-3 items-start text-left
-                 active:bg-leaf transition-colors"
+    <div className={`w-full border rounded-xl p-3 flex gap-3 items-start
+                     transition-colors
+                     ${isComplete
+                       ? 'bg-leaf/50 border-fern/20'
+                       : 'bg-white border-moss/40'}`}
     >
-      {/* Urgency bar */}
-      <UrgencyBar urgency={task.urgency} />
+      {/* Urgent badge bar */}
+      {task.urgency === 'urgent' && !isComplete && (
+        <div className="w-1 self-stretch bg-clay rounded-full flex-shrink-0" />
+      )}
 
-      {/* Botanical thumb */}
-      <div className="w-10 h-10 bg-leaf rounded-lg flex items-center
-                      justify-center flex-shrink-0">
+      {/* Plant icon — tap to expand detail */}
+      <button
+        onClick={() => setExpanded(e => !e)}
+        className="w-10 h-10 bg-leaf rounded-lg flex items-center
+                   justify-center flex-shrink-0 active:opacity-70"
+      >
         <BotanicalThumb name={task.plant_name} size={24} />
-      </div>
+      </button>
 
       {/* Content */}
-      <div className="flex-1 min-w-0">
-        <div className="flex items-start justify-between gap-2">
-          <p className="font-serif text-dark text-sm leading-tight">
+      <button
+        onClick={() => setExpanded(e => !e)}
+        className="flex-1 min-w-0 text-left"
+      >
+        <div className="flex items-center gap-1.5 flex-wrap">
+          <p className={`font-serif text-sm leading-tight
+                         ${isComplete ? 'text-subtle line-through' : 'text-dark'}`}>
             {task.plant_name}
           </p>
-          {task.urgency === 'urgent' && (
-            <span className="text-[10px] bg-clay/20 text-clay px-2 py-0.5
-                             rounded-full flex-shrink-0 font-medium">
-              This week
+          {task.urgency === 'urgent' && !isComplete && (
+            <span className="text-[10px] bg-clay/20 text-clay px-1.5 py-0.5
+                             rounded-full font-medium flex-shrink-0">
+              this week
             </span>
           )}
         </div>
 
-        <p className="text-sm text-fern font-medium mt-0.5">
-          {task.action}
-        </p>
-
-        {expanded && (
-          <p className="text-xs text-muted leading-relaxed mt-1.5 italic">
+        {expanded ? (
+          <p className="text-xs text-muted leading-relaxed mt-1 italic">
+            {task.detail}
+          </p>
+        ) : (
+          <p className="text-xs text-subtle mt-0.5 leading-snug line-clamp-1">
             {task.detail}
           </p>
         )}
+      </button>
 
-        {!expanded && (
-          <p className="text-[10px] text-subtle mt-1 tracking-wide">
-            Tap for detail
-          </p>
+      {/* Tick button */}
+      <button
+        onClick={onToggle}
+        disabled={toggling}
+        aria-label={isComplete ? 'Mark incomplete' : 'Mark complete'}
+        className={`w-7 h-7 rounded-full border-2 flex items-center justify-center
+                    flex-shrink-0 transition-colors active:opacity-70
+                    disabled:opacity-40
+                    ${isComplete
+                      ? 'bg-fern border-fern'
+                      : 'border-moss/50 bg-transparent'}`}
+      >
+        {isComplete && (
+          <svg width="12" height="12" fill="none" viewBox="0 0 24 24"
+            stroke="#D4DCCA" strokeWidth="3">
+            <path d="M20 6L9 17l-5-5"/>
+          </svg>
         )}
-      </div>
-    </button>
+      </button>
+    </div>
   )
 }
 
@@ -202,21 +230,14 @@ function FrostIndicator({ frostData, location, isPro, onUpgrade }) {
 
 // ─── Month navigator ──────────────────────────────────────────────────────────
 function MonthNav({ month, year, onChange }) {
-  const prev = () => {
-    if (month === 0) onChange(11, year - 1)
-    else onChange(month - 1, year)
-  }
-  const next = () => {
-    if (month === 11) onChange(0, year + 1)
-    else onChange(month + 1, year)
-  }
-
   return (
     <div className="flex items-center justify-between px-4 py-3">
       <button
-        onClick={prev}
+        onClick={() => month > 0 && onChange(month - 1, year)}
+        disabled={month === 0}
         className="w-9 h-9 bg-leaf rounded-full flex items-center
-                   justify-center active:bg-moss/30 transition-colors"
+                   justify-center active:bg-moss/30 transition-colors
+                   disabled:opacity-25"
       >
         <svg width="16" height="16" fill="none" viewBox="0 0 24 24"
           stroke="#4A5940" strokeWidth="2">
@@ -225,16 +246,16 @@ function MonthNav({ month, year, onChange }) {
       </button>
 
       <div className="text-center">
-        <h2 className="font-serif text-dark text-xl">
-          {MONTHS[month]}
-        </h2>
+        <h2 className="font-serif text-dark text-xl">{MONTHS[month]}</h2>
         <p className="text-xs text-subtle">{year}</p>
       </div>
 
       <button
-        onClick={next}
+        onClick={() => month < 11 && onChange(month + 1, year)}
+        disabled={month === 11}
         className="w-9 h-9 bg-leaf rounded-full flex items-center
-                   justify-center active:bg-moss/30 transition-colors"
+                   justify-center active:bg-moss/30 transition-colors
+                   disabled:opacity-25"
       >
         <svg width="16" height="16" fill="none" viewBox="0 0 24 24"
           stroke="#4A5940" strokeWidth="2">
@@ -245,7 +266,7 @@ function MonthNav({ month, year, onChange }) {
   )
 }
 
-// ─── Month strip (horizontal scroll) ─────────────────────────────────────────
+// ─── Month strip ──────────────────────────────────────────────────────────────
 function MonthStrip({ month, year, onChange }) {
   const activeRef = useRef(null)
 
@@ -363,14 +384,16 @@ export default function Calendar() {
 
   // ── State ──────────────────────────────────────────────────────────────────
   const [month, setMonth]           = useState(now.getMonth())
-  const [year, setYear]             = useState(now.getFullYear())
+  const [year]                      = useState(now.getFullYear())
   const [frostData, setFrostData]   = useState(null)
-  const [location, setLocation]     = useState(DEFAULT_LOCATION)
+  const [location]                  = useState('Leeds')
   const [showUpgrade, setUpgrade]   = useState(false)
   const [userPlants, setUserPlants] = useState([])
   const [loading, setLoading]       = useState(true)
+  const [completedKeys, setCompleted] = useState(new Set())
+  const [toggling, setToggling]     = useState(null)
 
-  // ── Fetch user's plants with care calendars ────────────────────────────────
+  // ── Fetch user's plants with care data ────────────────────────────────────
   useEffect(() => {
     const fetchPlants = async () => {
       setLoading(true)
@@ -390,85 +413,113 @@ export default function Calendar() {
     fetchPlants()
   }, [])
 
-  // ── Pro status (extend later from user_metadata.is_pro) ───────────────────
+  // ── Fetch completions for this year ───────────────────────────────────────
+  useEffect(() => {
+    const fetchCompletions = async () => {
+      const { data: { user } } = await supabase.auth.getUser()
+      if (!user) return
+      const { data } = await supabase
+        .from('user_task_completions')
+        .select('user_plant_id, month, task')
+        .eq('user_id', user.id)
+        .eq('year', year)
+      if (data) {
+        setCompleted(new Set(data.map(r =>
+          `${r.user_plant_id}-${r.month}-${r.task}`
+        )))
+      }
+    }
+    fetchCompletions()
+  }, [year])
+
+  // ── Pro status ────────────────────────────────────────────────────────────
   const isPro = false
 
-  // ── Fetch frost data (Open-Meteo — free, no key needed) ────────────────────
+  // ── Frost data (Pro only) ─────────────────────────────────────────────────
   useEffect(() => {
     if (!isPro) return
-
     const fetchFrost = async () => {
       try {
-        // Try to get user's actual location
-        let lat = DEFAULT_LAT
-        let lon = DEFAULT_LON
-
+        let lat = 53.8008, lon = -1.5491
         if (navigator.geolocation) {
           await new Promise(resolve => {
             navigator.geolocation.getCurrentPosition(
-              pos => {
-                lat = pos.coords.latitude
-                lon = pos.coords.longitude
-                resolve()
-              },
-              () => resolve(), // fall back to Leeds on error
+              pos => { lat = pos.coords.latitude; lon = pos.coords.longitude; resolve() },
+              () => resolve(),
               { timeout: 3000 }
             )
           })
         }
-
         const res = await fetch(
-          `https://api.open-meteo.com/v1/forecast?` +
-          `latitude=${lat}&longitude=${lon}` +
-          `&daily=temperature_2m_min` +
-          `&timezone=Europe%2FLondon` +
-          `&forecast_days=1`
+          `https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}` +
+          `&daily=temperature_2m_min&timezone=Europe%2FLondon&forecast_days=1`
         )
         const data = await res.json()
         const minTemp = Math.round(data.daily.temperature_2m_min[0])
-
         let frostRisk = 'none'
-        if (minTemp <= 0)  frostRisk = 'high'
+        if (minTemp <= 0) frostRisk = 'high'
         else if (minTemp <= 2) frostRisk = 'medium'
         else if (minTemp <= 5) frostRisk = 'low'
-
         const descriptions = {
-          none:   'No frost risk tonight',
-          low:    'Cool night — watch tender plants',
+          none: 'No frost risk tonight', low: 'Cool night — watch tender plants',
           medium: 'Near-freezing — consider covering dahlias',
-          high:   'Frost likely — protect tender plants now',
+          high: 'Frost likely — protect tender plants now',
         }
-
         setFrostData({ minTemp, frostRisk, description: descriptions[frostRisk] })
       } catch {
         setFrostData({ minTemp: '—', frostRisk: 'none', description: 'Weather data unavailable' })
       }
     }
-
     fetchFrost()
   }, [isPro])
 
-  // ── Get tasks for the selected month ──────────────────────────────────────
-  const isCurrentMonth = month === now.getMonth() && year === now.getFullYear()
-  const tasks = getTasksForMonth(month, userPlants, isCurrentMonth)
+  // ── Toggle task completion ─────────────────────────────────────────────────
+  const handleToggle = async (task) => {
+    const key = completionKey(task)
+    if (toggling === key) return
+    setToggling(key)
+    try {
+      const { data: { user } } = await supabase.auth.getUser()
+      if (!user) return
 
-  // ── Group tasks by urgency ─────────────────────────────────────────────────
-  const urgent   = tasks.filter(t => t.urgency === 'urgent')
-  const soon     = tasks.filter(t => t.urgency === 'soon')
-  const upcoming = tasks.filter(t => t.urgency === 'upcoming')
-
-  const handleMonthChange = (m, y) => {
-    setMonth(m)
-    setYear(y)
-    setFrostData(null)
+      if (completedKeys.has(key)) {
+        await supabase.from('user_task_completions')
+          .delete()
+          .eq('user_plant_id', task.user_plant_id)
+          .eq('month', task.month)
+          .eq('year', year)
+          .eq('task', task.action)
+        setCompleted(prev => { const s = new Set(prev); s.delete(key); return s })
+      } else {
+        await supabase.from('user_task_completions')
+          .insert({
+            user_id:       user.id,
+            user_plant_id: task.user_plant_id,
+            month:         task.month,
+            year,
+            task:          task.action,
+          })
+        setCompleted(prev => new Set([...prev, key]))
+      }
+    } finally {
+      setToggling(null)
+    }
   }
+
+  // ── Tasks for selected month ───────────────────────────────────────────────
+  const isCurrentMonth = month === now.getMonth() && year === now.getFullYear()
+  const tasks   = getTasksForMonth(month, userPlants, isCurrentMonth)
+  const grouped = groupByCategory(tasks)
+  const total   = tasks.length
+  const done    = tasks.filter(t => completedKeys.has(completionKey(t))).length
+
+  const handleMonthChange = (m) => setMonth(m)
 
   // ── Render ─────────────────────────────────────────────────────────────────
   return (
     <div className="flex flex-col min-h-screen bg-parchment pb-20">
       <TopBar />
 
-      {/* Loading skeleton */}
       {loading && (
         <div className="flex flex-col gap-3 px-4 pt-4">
           {[1,2,3].map(i => (
@@ -479,121 +530,89 @@ export default function Calendar() {
 
       {!loading && (
         <>
-          {/* Month navigator */}
           <MonthNav month={month} year={year} onChange={handleMonthChange} />
-
-          {/* Month strip */}
           <MonthStrip month={month} year={year} onChange={handleMonthChange} />
         </>
       )}
 
-      {!loading && <main className="flex-1 flex flex-col gap-3 px-4 pb-4">
+      {!loading && (
+        <main className="flex-1 flex flex-col gap-3 px-4 pb-4">
 
-        {/* Frost indicator */}
-        <FrostIndicator
-          frostData={frostData}
-          location={location}
-          isPro={isPro}
-          onUpgrade={() => setUpgrade(true)}
-        />
+          {/* Frost indicator */}
+          <FrostIndicator
+            frostData={frostData}
+            location={location}
+            isPro={isPro}
+            onUpgrade={() => setUpgrade(true)}
+          />
 
-        {/* Task count summary */}
-        {tasks.length > 0 && (
-          <div className="flex gap-2">
-            {urgent.length > 0 && (
-              <div className="flex-1 bg-clay/10 border border-clay/30
-                              rounded-xl px-3 py-2 text-center">
-                <p className="text-lg font-serif text-clay">{urgent.length}</p>
-                <p className="text-[10px] text-clay/70 uppercase tracking-widest">
-                  This week
+          {/* Progress summary */}
+          {total > 0 && (
+            <div className="flex items-center justify-between
+                            bg-white border border-moss/40 rounded-xl px-4 py-3">
+              <div>
+                <p className="font-serif text-dark text-lg leading-none">
+                  {done} <span className="text-subtle text-base">of {total}</span>
                 </p>
+                <p className="text-xs text-subtle mt-0.5">tasks done this month</p>
               </div>
-            )}
-            {soon.length > 0 && (
-              <div className="flex-1 bg-leaf border border-moss/40
-                              rounded-xl px-3 py-2 text-center">
-                <p className="text-lg font-serif text-fern">{soon.length}</p>
-                <p className="text-[10px] text-subtle uppercase tracking-widest">
-                  Coming up
-                </p>
+              {/* Progress bar */}
+              <div className="w-24 h-2 bg-leaf rounded-full overflow-hidden">
+                <div
+                  className="h-full bg-fern rounded-full transition-all duration-300"
+                  style={{ width: total > 0 ? `${(done / total) * 100}%` : '0%' }}
+                />
               </div>
-            )}
-            {upcoming.length > 0 && (
-              <div className="flex-1 bg-white border border-moss/40
-                              rounded-xl px-3 py-2 text-center">
-                <p className="text-lg font-serif text-muted">{upcoming.length}</p>
-                <p className="text-[10px] text-subtle uppercase tracking-widest">
-                  This month
-                </p>
-              </div>
-            )}
-          </div>
-        )}
+            </div>
+          )}
 
-        {/* Tasks or empty state */}
-        {tasks.length === 0 ? (
-          <EmptyMonth month={month} onScan={() => navigate('/scan')} />
-        ) : (
-          <>
-            {/* Urgent tasks */}
-            {urgent.length > 0 && (
-              <section>
-                <p className="text-xs text-clay font-medium uppercase
-                              tracking-widest mb-2">
-                  This week
-                </p>
+          {/* Tasks grouped by category */}
+          {total === 0 ? (
+            <EmptyMonth month={month} onScan={() => navigate('/scan')} />
+          ) : (
+            Object.entries(grouped).map(([cat, catTasks]) => (
+              <section key={cat}>
+                <div className="flex items-center gap-2 mb-2">
+                  <span className="text-base leading-none">{categoryIcon(cat)}</span>
+                  <p className="text-xs font-medium text-dark uppercase tracking-widest">
+                    {cat}
+                  </p>
+                  <span className="text-[10px] text-subtle ml-auto">
+                    {catTasks.filter(t => completedKeys.has(completionKey(t))).length}/{catTasks.length}
+                  </span>
+                </div>
                 <div className="flex flex-col gap-2">
-                  {urgent.map(t => <TaskCard key={t.id} task={t} />)}
+                  {catTasks.map(t => (
+                    <TaskCard
+                      key={t.id}
+                      task={t}
+                      isComplete={completedKeys.has(completionKey(t))}
+                      onToggle={() => handleToggle(t)}
+                      toggling={toggling === completionKey(t)}
+                    />
+                  ))}
                 </div>
               </section>
-            )}
+            ))
+          )}
 
-            {/* Soon tasks */}
-            {soon.length > 0 && (
-              <section>
-                <p className="text-xs text-fern font-medium uppercase
-                              tracking-widest mb-2 mt-1">
-                  Coming up
-                </p>
-                <div className="flex flex-col gap-2">
-                  {soon.map(t => <TaskCard key={t.id} task={t} />)}
-                </div>
-              </section>
-            )}
+          {/* Pro nudge */}
+          {!isPro && total > 0 && (
+            <button
+              onClick={() => setUpgrade(true)}
+              className="w-full bg-fern/5 border border-fern/20 rounded-xl
+                         px-4 py-3 text-center active:bg-fern/10 transition-colors"
+            >
+              <p className="text-xs font-medium text-fern">
+                Unlock frost alerts & full calendar with Sown Pro
+              </p>
+              <p className="text-xs text-subtle mt-0.5">£19.99/year</p>
+            </button>
+          )}
 
-            {/* Upcoming tasks */}
-            {upcoming.length > 0 && (
-              <section>
-                <p className="text-xs text-subtle font-medium uppercase
-                              tracking-widest mb-2 mt-1">
-                  This month
-                </p>
-                <div className="flex flex-col gap-2">
-                  {upcoming.map(t => <TaskCard key={t.id} task={t} />)}
-                </div>
-              </section>
-            )}
-          </>
-        )}
+        </main>
+      )}
 
-        {/* Sown Pro nudge at bottom (free users only) */}
-        {!isPro && tasks.length > 0 && (
-          <button
-            onClick={() => setUpgrade(true)}
-            className="w-full bg-fern/5 border border-fern/20 rounded-xl
-                       px-4 py-3 text-center active:bg-fern/10
-                       transition-colors"
-          >
-            <p className="text-xs font-medium text-fern">
-              Unlock frost alerts & full calendar with Sown Pro
-            </p>
-            <p className="text-xs text-subtle mt-0.5">£19.99/year</p>
-          </button>
-        )}
-
-      </main>}
-
-      {/* Upgrade sheet */}
       {showUpgrade && <UpgradeSheet onClose={() => setUpgrade(false)} />}
     </div>
   )
@@ -601,12 +620,10 @@ export default function Calendar() {
 
 // ─── Care calendar logic ───────────────────────────────────────────────────────
 
-// Parse month numbers from free-text strings like "March", "spring", "after flowering in August"
 function parseMonthRefs(text) {
   if (!text) return []
   const lower = text.toLowerCase()
   const found = new Set()
-
   const named = [
     ['jan', 1], ['feb', 2], ['mar', 3], ['apr', 4], ['may', 5], ['jun', 6],
     ['jul', 7], ['aug', 8], ['sep', 9], ['oct', 10], ['nov', 11], ['dec', 12],
@@ -614,45 +631,36 @@ function parseMonthRefs(text) {
   for (const [name, num] of named) {
     if (lower.includes(name)) found.add(num)
   }
-
   if (lower.includes('spring'))  [3, 4, 5].forEach(m => found.add(m))
   if (lower.includes('summer'))  [6, 7, 8].forEach(m => found.add(m))
   if (lower.includes('autumn'))  [9, 10, 11].forEach(m => found.add(m))
   if (lower.includes('winter'))  [12, 1, 2].forEach(m => found.add(m))
-
   return [...found]
 }
 
-// Build fallback entries from plant text fields when care_calendar is absent
 function deriveCareCalendar(plant) {
   const entries = []
-
   if (plant.pruning_when) {
     const months = parseMonthRefs(plant.pruning_when)
     const detail = [plant.pruning_how, plant.pruning_when].filter(Boolean).join(' — ')
     months.forEach(m => entries.push({ month: m, task: 'Prune', detail }))
   }
-
   if (plant.watering && !plant.watering.toLowerCase().includes('drought tolerant')) {
-    // Water reminders during peak growing season
     ;[5, 6, 7, 8].forEach(m =>
       entries.push({ month: m, task: 'Water', detail: plant.watering })
     )
   }
-
   if (plant.winter_care) {
     ;[10, 11].forEach(m =>
       entries.push({ month: m, task: 'Winter prep', detail: plant.winter_care })
     )
   }
-
   if (plant.flowering_season) {
     const months = parseMonthRefs(plant.flowering_season)
     months.forEach(m =>
       entries.push({ month: m, task: 'Deadhead', detail: `Remove spent blooms to prolong flowering. ${plant.flowering_season}.` })
     )
   }
-
   return entries
 }
 
@@ -660,7 +668,7 @@ function getTasksForMonth(month, userPlants, isCurrentMonth) {
   const tasks       = []
   const now         = new Date()
   const weekOfMonth = Math.ceil(now.getDate() / 7)
-  const calMonth    = month + 1  // 1-indexed
+  const calMonth    = month + 1
 
   userPlants.forEach(row => {
     const plant = row.plants
@@ -679,15 +687,18 @@ function getTasksForMonth(month, userPlants, isCurrentMonth) {
         urgency = (idx === 0 && weekOfMonth <= 2) ? 'urgent' : 'soon'
       }
       tasks.push({
-        id:         `${row.id}-${calMonth}-${idx}`,
-        plant_name: plant.common_name,
-        action:     entry.task,
-        detail:     entry.detail,
+        id:            `${row.id}-${calMonth}-${idx}`,
+        user_plant_id: row.id,
+        month:         calMonth,
+        plant_name:    plant.common_name,
+        action:        entry.task,
+        detail:        entry.detail,
         urgency,
       })
     })
   })
 
-  const order = { urgent: 0, soon: 1, upcoming: 2 }
-  return tasks.sort((a, b) => order[a.urgency] - order[b.urgency])
+  return tasks.sort((a, b) =>
+    (a.urgency === 'urgent' ? 0 : 1) - (b.urgency === 'urgent' ? 0 : 1)
+  )
 }
