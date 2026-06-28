@@ -31,7 +31,7 @@ export default function App() {
             {/* Public auth routes */}
             <Route path="/auth" element={<Auth />} />
             <Route path="/password-reset" element={<PasswordReset />} />
-            
+
             {/* Protected routes */}
             <Route path="/" element={
               <ProtectedRoute><Home /></ProtectedRoute>
