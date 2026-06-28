@@ -58,7 +58,7 @@ export function getTasksForMonth(month, userPlants, isCurrentMonth) {
       ? plant.care_calendar
       : deriveCareCalendar(plant)
 
-    const monthEntries = calendar.filter(e => e.month === calMonth)
+    const monthEntries = calendar.filter(e => Number(e.month) === calMonth)
     if (monthEntries.length === 0) return
 
     monthEntries.forEach((entry, idx) => {
