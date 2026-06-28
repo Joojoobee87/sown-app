@@ -137,6 +137,11 @@ function TaskCard({ task, isComplete, onToggle, toggling }) {
             </span>
           )}
         </div>
+        {task.location && (
+          <p className="text-[10px] text-fern font-medium mt-0.5 tracking-wide">
+            {task.location}
+          </p>
+        )}
 
         {expanded ? (
           <p className="text-xs text-muted leading-relaxed mt-1 italic">
@@ -412,7 +417,7 @@ export default function Calendar() {
         if (!user) return
         const { data } = await supabase
           .from('user_plants')
-          .select('id, status, plants(common_name, latin_name, photo_url, care_calendar, pruning_when, pruning_how, watering, winter_care, flowering_season)')
+          .select('id, status, location, plants(common_name, latin_name, photo_url, care_calendar, pruning_when, pruning_how, watering, winter_care, flowering_season)')
           .eq('user_id', user.id)
           .order('created_at', { ascending: true })
         setUserPlants(data || [])
@@ -702,6 +707,7 @@ function getTasksForMonth(month, userPlants, isCurrentMonth) {
         month:         calMonth,
         plant_name:    plant.common_name,
         photo_url:     plant.photo_url || null,
+        location:      row.location || null,
         action:        entry.task,
         detail:        entry.detail,
         urgency,
