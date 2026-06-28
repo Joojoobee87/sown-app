@@ -1,5 +1,6 @@
 // src/App.jsx — Working authentication with real Supabase integration
-import { BrowserRouter, Routes, Route } from 'react-router-dom'
+import { useEffect } from 'react'
+import { BrowserRouter, Routes, Route, useLocation } from 'react-router-dom'
 import { AuthProvider } from './context/AuthContext'
 import ProtectedRoute from './components/ProtectedRoute'
 import Auth from './screens/Auth'
@@ -14,10 +15,17 @@ import About from './screens/About'
 import Profile from './screens/Profile'
 import GardenZones from './screens/GardenZones'
 
+function ScrollToTop() {
+  const { pathname } = useLocation()
+  useEffect(() => { window.scrollTo(0, 0) }, [pathname])
+  return null
+}
+
 export default function App() {
   return (
     <BrowserRouter>
       <AuthProvider>
+        <ScrollToTop />
         <div className="max-w-md mx-auto min-h-screen relative bg-parchment">
           <Routes>
             {/* Public auth routes */}
