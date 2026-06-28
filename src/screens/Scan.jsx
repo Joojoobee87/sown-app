@@ -351,6 +351,9 @@ export default function Scan() {
   const [mode, setMode]           = useState('camera')   // 'camera' | 'search'
   const [cameraReady, setCamReady] = useState(false)
   const [cameraError, setCamError] = useState(null)
+  const [cameraGranted, setCameraGranted] = useState(
+    () => !!localStorage.getItem('sown_camera_granted')
+  )
   const [scanning, setScanning]   = useState(false)
   const [search, setSearch]       = useState('')
   const [searchResults, setSearchResults] = useState([])
@@ -417,9 +420,13 @@ export default function Scan() {
         await videoRef.current.play()
         setCamReady(true)
       }
+      localStorage.setItem('sown_camera_granted', '1')
+      setCameraGranted(true)
     } catch (err) {
       // Common errors: NotAllowedError (permission denied), NotFoundError (no camera)
       if (err.name === 'NotAllowedError') {
+        localStorage.removeItem('sown_camera_granted')
+        setCameraGranted(false)
         setCamError('Camera permission denied. Please allow camera access in your browser settings.')
       } else if (err.name === 'NotFoundError') {
         setCamError('No camera found on this device.')
@@ -440,9 +447,9 @@ export default function Scan() {
 
   // ── Lifecycle ──────────────────────────────────────────────────────────────
   useEffect(() => {
-    if (mode === 'camera') startCamera()
+    if (mode === 'camera' && cameraGranted) startCamera()
     return () => stopCamera()
-  }, [mode, startCamera, stopCamera])
+  }, [mode, cameraGranted, startCamera, stopCamera])
 
   // ── Capture frame & identify ───────────────────────────────────────────────
   const handleIdentify = async () => {
@@ -673,8 +680,27 @@ export default function Scan() {
             {/* Scan overlay (corner brackets + animated line) */}
             {cameraReady && !scanning && <ScanOverlay />}
 
-            {/* Loading state */}
-            {!cameraReady && !cameraError && (
+            {/* First-visit prompt — user must tap to trigger permission */}
+            {!cameraReady && !cameraError && !cameraGranted && (
+              <div className="absolute inset-0 flex flex-col items-center
+                              justify-center gap-4 px-6 text-center">
+                <SownIcon size={40} fill="#D4DCCA" />
+                <p className="text-sage/80 text-sm leading-relaxed">
+                  Sown needs camera access to identify your plants
+                </p>
+                <button
+                  onClick={startCamera}
+                  className="bg-fern text-sage text-sm font-medium
+                             px-6 py-3 rounded-xl tracking-wide
+                             active:opacity-80 transition-opacity"
+                >
+                  Allow camera
+                </button>
+              </div>
+            )}
+
+            {/* Loading state — after permission granted */}
+            {!cameraReady && !cameraError && cameraGranted && (
               <div className="absolute inset-0 flex flex-col items-center
                               justify-center gap-3">
                 <div className="w-8 h-8 border-2 border-sage/30
