@@ -787,7 +787,7 @@ export default function Scan() {
               value={search}
               onChange={e => setSearch(e.target.value)}
               className="w-full bg-dark/60 border border-subtle/30
-                         rounded-xl pl-9 pr-4 py-3 text-sm text-sage
+                         rounded-xl pl-9 pr-4 py-3 text-base text-sage
                          placeholder:text-subtle/60
                          focus:outline-none focus:border-moss
                          transition-colors"
