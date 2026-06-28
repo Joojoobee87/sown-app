@@ -184,8 +184,14 @@ export default function Home() {
           </p>
         </div>
 
-        {/* This week / quote card */}
-        {hasPlants ? (
+        {/* This month tip / quote card — skeleton until plant count is known */}
+        {loading ? (
+          <div className="bg-leaf rounded-xl p-4 border-l-[3px] border-fern">
+            <div className="h-2.5 w-20 bg-fern/20 rounded animate-pulse mb-3" />
+            <div className="h-3 w-full bg-moss/20 rounded animate-pulse mb-1.5" />
+            <div className="h-3 w-3/4 bg-moss/20 rounded animate-pulse" />
+          </div>
+        ) : hasPlants ? (
           <div className="bg-leaf rounded-xl p-4 border-l-[3px] border-fern">
             <p className="text-[10px] font-semibold text-fern mb-1.5
                           tracking-widest uppercase">
