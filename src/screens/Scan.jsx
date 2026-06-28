@@ -768,6 +768,36 @@ export default function Scan() {
             Can't get a clear shot? Search by name
           </button>
 
+          {/* Scanning tips */}
+          <div className="bg-dark/50 border border-subtle/20 rounded-xl p-4">
+            <p className="text-sage/60 text-[10px] uppercase tracking-widest font-medium mb-3">
+              Getting the best results
+            </p>
+            <div className="flex flex-col gap-2.5">
+              <div className="flex gap-3 items-start">
+                <span className="text-fern text-xs mt-0.5 flex-shrink-0">✓</span>
+                <p className="text-sage/70 text-xs leading-relaxed">
+                  <span className="text-sage/90 font-medium">Scan the label first.</span>{' '}
+                  If your plant has a tag or nursery label, point the camera at that — it gives the most reliable identification.
+                </p>
+              </div>
+              <div className="flex gap-3 items-start">
+                <span className="text-fern text-xs mt-0.5 flex-shrink-0">✓</span>
+                <p className="text-sage/70 text-xs leading-relaxed">
+                  <span className="text-sage/90 font-medium">Scan the plant visually</span>{' '}
+                  only when there's no label — visual ID works best for distinctive plants but can be less precise.
+                </p>
+              </div>
+              <div className="flex gap-3 items-start">
+                <span className="text-fern text-xs mt-0.5 flex-shrink-0">✓</span>
+                <p className="text-sage/70 text-xs leading-relaxed">
+                  <span className="text-sage/90 font-medium">Not sure about the result?</span>{' '}
+                  Use the Search tab to look up by name and confirm before saving.
+                </p>
+              </div>
+            </div>
+          </div>
+
         </div>
       )}
 
