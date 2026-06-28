@@ -3,6 +3,7 @@ import { Link, useNavigate } from 'react-router-dom'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../context/AuthContext'
 import { requestPushPermission } from '../lib/pushNotifications'
+import { getTasksForMonth, normaliseCategory } from '../lib/careCalendar'
 import TopBar from '../components/TopBar'
 
 // ─── Seasonal tips — shown when the user has plants ──────────────────────────
@@ -105,9 +106,10 @@ export default function Home() {
   const { user } = useAuth()
   const navigate  = useNavigate()
 
-  const [plantCount, setPlantCount] = useState(null)
-  const [zoneCount, setZoneCount]   = useState(null)
-  const [loading, setLoading]       = useState(true)
+  const [plantCount, setPlantCount]     = useState(null)
+  const [zoneCount, setZoneCount]       = useState(null)
+  const [thisMonthTasks, setMonthTasks] = useState([])
+  const [loading, setLoading]           = useState(true)
 
   // Show soft push prompt if browser supports it and user hasn't been asked or dismissed
   const [showPushPrompt, setShowPushPrompt] = useState(() => {
@@ -139,12 +141,19 @@ export default function Home() {
       try {
         const { data: { user: authUser } } = await supabase.auth.getUser()
         if (!authUser) return
-        const [{ count: plants }, { count: zones }] = await Promise.all([
+        const [{ count: plants }, { count: zones }, { data: plantsData }] = await Promise.all([
           supabase.from('user_plants').select('id', { count: 'exact', head: true }).eq('user_id', authUser.id),
           supabase.from('garden_zones').select('id', { count: 'exact', head: true }).eq('user_id', authUser.id),
+          supabase.from('user_plants')
+            .select('id, location, plants(common_name, care_calendar, pruning_when, pruning_how, watering, winter_care, flowering_season)')
+            .eq('user_id', authUser.id),
         ])
         setPlantCount(plants ?? 0)
         setZoneCount(zones ?? 0)
+        if (plantsData) {
+          const now = new Date()
+          setMonthTasks(getTasksForMonth(now.getMonth(), plantsData, true))
+        }
       } finally {
         setLoading(false)
       }
@@ -184,14 +193,49 @@ export default function Home() {
           </p>
         </div>
 
-        {/* This month tip / quote card — skeleton until plant count is known */}
+        {/* This month card — skeleton → real tasks → quote fallback */}
         {loading ? (
           <div className="bg-leaf rounded-xl p-4 border-l-[3px] border-fern">
             <div className="h-2.5 w-20 bg-fern/20 rounded animate-pulse mb-3" />
             <div className="h-3 w-full bg-moss/20 rounded animate-pulse mb-1.5" />
             <div className="h-3 w-3/4 bg-moss/20 rounded animate-pulse" />
           </div>
-        ) : hasPlants ? (
+        ) : hasPlants && thisMonthTasks.length > 0 ? (() => {
+          const categories = [...new Set(thisMonthTasks.map(t => normaliseCategory(t.action)))]
+          const top = thisMonthTasks[0]
+          return (
+            <button
+              onClick={() => navigate('/calendar')}
+              className="bg-leaf rounded-xl p-4 border-l-[3px] border-fern
+                         text-left w-full active:opacity-80 transition-opacity"
+            >
+              <div className="flex items-center justify-between mb-1.5">
+                <p className="text-[10px] font-semibold text-fern tracking-widest uppercase">
+                  This month
+                </p>
+                <p className="text-[10px] text-subtle">
+                  {thisMonthTasks.length} task{thisMonthTasks.length !== 1 ? 's' : ''}
+                </p>
+              </div>
+              <p className="text-sm text-dark leading-relaxed">
+                {top.action} your {top.plant_name}
+                {categories.length > 1 && (
+                  <span className="text-subtle">
+                    {' '}and {thisMonthTasks.length - 1} more
+                  </span>
+                )}
+              </p>
+              {categories.length > 1 && (
+                <p className="text-xs text-subtle mt-1">
+                  {categories.join(' · ')}
+                </p>
+              )}
+              <p className="text-xs text-fern font-medium mt-2">
+                View calendar →
+              </p>
+            </button>
+          )
+        })() : hasPlants ? (
           <div className="bg-leaf rounded-xl p-4 border-l-[3px] border-fern">
             <p className="text-[10px] font-semibold text-fern mb-1.5
                           tracking-widest uppercase">
