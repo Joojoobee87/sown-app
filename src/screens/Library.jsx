@@ -225,16 +225,17 @@ function PlantDetailSheet({ plant: initialPlant, onClose, onUpdate }) {
       {/* Backdrop */}
       <div className="fixed inset-0 bg-dark/40 z-40" onClick={onClose} />
 
-      {/* Sheet */}
+      {/* Sheet — outer clips overflow, inner scrolls (fixes iOS Safari overflow bug) */}
       <div
         className="fixed bottom-0 left-0 right-0 max-w-md mx-auto
                    bg-parchment rounded-t-2xl z-50 max-h-[85vh]
-                   overflow-y-auto overflow-x-hidden w-full"
+                   overflow-hidden"
         style={{
           transform: dragY > 0 ? `translateY(${dragY}px)` : undefined,
           transition: dragY > 0 ? 'none' : 'transform 0.25s ease',
         }}
       >
+      <div className="overflow-y-auto max-h-[85vh]">
 
         {/* Handle — touch events here only so swipe doesn't fight scroll */}
         <div
@@ -365,11 +366,11 @@ function PlantDetailSheet({ plant: initialPlant, onClose, onUpdate }) {
             return facts.length > 0 ? (
               <div className="grid grid-cols-2 gap-2">
                 {facts.map(({ label, value }) => (
-                  <div key={label} className="bg-leaf rounded-lg px-3 py-2">
+                  <div key={label} className="bg-leaf rounded-lg px-3 py-2 min-w-0 overflow-hidden">
                     <p className="text-[10px] text-subtle uppercase tracking-widest mb-0.5">
                       {label}
                     </p>
-                    <p className="text-sm text-dark font-medium capitalize">{value}</p>
+                    <p className="text-sm text-dark font-medium capitalize break-words">{value}</p>
                   </div>
                 ))}
               </div>
@@ -485,7 +486,8 @@ function PlantDetailSheet({ plant: initialPlant, onClose, onUpdate }) {
             }
           </button>
         </div>
-      </div>
+      </div>{/* end inner scroll */}
+      </div>{/* end outer clip */}
     </>
   )
 }
@@ -612,7 +614,7 @@ export default function Library() {
               value={search}
               onChange={e => setSearch(e.target.value)}
               className="w-full bg-white border border-moss/40 rounded-xl
-                         pl-9 pr-4 py-2.5 text-sm text-dark
+                         pl-9 pr-4 py-2.5 text-base text-dark
                          placeholder:text-subtle/60
                          focus:outline-none focus:border-fern
                          transition-colors"
