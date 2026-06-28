@@ -70,9 +70,9 @@ jspm_packages/
 # Nuxt.js build / generate output
 .nuxt
 
-# Gatsby files
+# Gatsby files (not used — Vite project)
 .cache/
-public
+# public is intentionally NOT ignored — Vite serves static assets from it
 
 # Storybook build outputs
 .out
@@ -81,6 +81,9 @@ public
 # Temporary folders
 tmp/
 temp/
+
+# Claude Code local session data
+.claude/
 
 # Editor directories and files
 .vscode/

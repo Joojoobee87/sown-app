@@ -57,11 +57,13 @@ function MenuDrawer({ onClose }) {
   const { user, signOut } = useAuth()
   const navigate = useNavigate()
 
-  const fullName = user?.user_metadata?.full_name || ''
+  const forename = user?.user_metadata?.forename || ''
+  const surname  = user?.user_metadata?.surname  || ''
+  const fullName = [forename, surname].filter(Boolean).join(' ')
+              || user?.user_metadata?.full_name || ''
   const email    = user?.email || ''
-  const initials = fullName
-    ? fullName.split(' ').map(w => w[0]).slice(0, 2).join('').toUpperCase()
-    : (email[0] || 'S').toUpperCase()
+  const initials = forename[0]?.toUpperCase()
+               || (email[0] || 'S').toUpperCase()
 
   const go = (path) => { navigate(path); onClose() }
 
@@ -75,12 +77,12 @@ function MenuDrawer({ onClose }) {
     <>
       {/* Backdrop */}
       <div
-        className="fixed inset-0 bg-dark/40 z-50"
+        className="fixed inset-0 bg-dark/40 z-[60]"
         onClick={onClose}
       />
 
       {/* Drawer panel */}
-      <div className="fixed top-0 right-0 bottom-0 w-72 bg-parchment z-50
+      <div className="fixed top-0 right-0 bottom-0 w-72 bg-parchment z-[60]
                       flex flex-col shadow-2xl">
 
         {/* Profile header */}
@@ -102,7 +104,7 @@ function MenuDrawer({ onClose }) {
         </div>
 
         {/* Nav items */}
-        <nav className="flex-1 px-3 py-4 flex flex-col gap-0.5 overflow-y-auto">
+        <nav className="flex-1 px-3 py-4 flex flex-col gap-0.5 overflow-y-auto overflow-x-hidden">
           <button
             onClick={() => go('/profile')}
             className="w-full text-left px-4 py-3 rounded-xl text-sm text-dark
@@ -221,8 +223,16 @@ export default function TopBar() {
         </button>
       </header>
 
-      {/* Spacer so page content clears the fixed header */}
-      <div className="h-[76px] flex-shrink-0" />
+      {/* Phantom spacer — invisible copy of header so content clears it at any size */}
+      <div className="bg-fern px-5 py-4 flex items-center justify-between invisible"
+           aria-hidden="true">
+        <div className="w-11 h-11" />
+        <div className="flex flex-col items-center">
+          <span className="font-serif text-2xl leading-none">SOWN</span>
+          <span className="text-[10px] mt-1">Garden and Home</span>
+        </div>
+        <div className="w-[38px] h-[38px]" />
+      </div>
 
       {menuOpen && <MenuDrawer onClose={() => setMenuOpen(false)} />}
     </>

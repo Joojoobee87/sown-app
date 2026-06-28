@@ -1,0 +1,22 @@
+name: Monthly garden reminders
+
+on:
+  schedule:
+    # 8am UTC on the 1st of every month
+    - cron: '0 8 1 * *'
+  workflow_dispatch:   # allows manual trigger from GitHub Actions tab
+
+jobs:
+  send-reminders:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Invoke send-monthly-reminders edge function
+        run: |
+          curl -sf -X POST \
+            "$SUPABASE_URL/functions/v1/send-monthly-reminders" \
+            -H "Authorization: Bearer $SUPABASE_ANON_KEY" \
+            -H "Content-Type: application/json" \
+            -d '{}'
+        env:
+          SUPABASE_URL:      ${{ secrets.SUPABASE_URL }}
+          SUPABASE_ANON_KEY: ${{ secrets.SUPABASE_ANON_KEY }}

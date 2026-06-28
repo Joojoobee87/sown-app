@@ -20,6 +20,23 @@ import { supabase } from '../lib/supabase'
 import TopBar from '../components/TopBar'
 import SownIcon from '../components/SownIcon'
 
+// ─── Wikipedia photo lookup (client-side for reliable external access) ────────
+async function fetchWikipediaPhoto(latinName) {
+  if (!latinName) return null
+  const lookup = async (name) => {
+    try {
+      const slug = name.trim().replace(/ /g, '_')
+      const res = await fetch(
+        `https://en.wikipedia.org/api/rest_v1/page/summary/${encodeURIComponent(slug)}`
+      )
+      if (!res.ok) return null
+      const data = await res.json()
+      return data?.thumbnail?.source ?? null
+    } catch { return null }
+  }
+  return (await lookup(latinName)) ?? (await lookup(latinName.split(' ')[0]))
+}
+
 // ─── Scan icon — corner-bracket viewfinder with a small leaf centre ──────────
 function ScanIcon({ size = 20, stroke = 'currentColor' }) {
   return (
@@ -87,41 +104,83 @@ function PlantProfileCard({ result, onSave, onDismiss, saving }) {
     { label: 'Frost',    value: plant.frost_hardiness },
   ].filter(f => f.value)
 
+  // Swipe-down-to-close on handle only
+  const touchStartY = useRef(null)
+  const [dragY, setDragY] = useState(0)
+  const handleTouchStart = (e) => { touchStartY.current = e.touches[0].clientY }
+  const handleTouchMove  = (e) => {
+    const dy = e.touches[0].clientY - touchStartY.current
+    if (dy > 0) setDragY(dy)
+  }
+  const handleTouchEnd = () => {
+    if (dragY > 60) { onDismiss(); return }
+    setDragY(0)
+  }
+
   return (
     <>
       {/* Backdrop */}
       <div className="fixed inset-0 bg-dark/50 z-40" onClick={onDismiss} />
 
       {/* Sheet */}
-      <div className="fixed bottom-0 left-0 right-0 max-w-md mx-auto
-                      bg-parchment rounded-t-2xl z-50 max-h-[85vh]
-                      overflow-y-auto">
+      <div
+        className="fixed bottom-0 left-0 right-0 max-w-md mx-auto
+                   bg-parchment rounded-t-2xl z-50 max-h-[85vh]
+                   overflow-y-auto overflow-x-hidden w-full"
+        style={{
+          transform: dragY > 0 ? `translateY(${dragY}px)` : undefined,
+          transition: dragY > 0 ? 'none' : 'transform 0.25s ease',
+        }}
+      >
 
-        {/* Handle — tap to dismiss */}
+        {/* Handle — tap or swipe down to dismiss */}
         <div
           className="flex justify-center pt-3 pb-2 sticky top-0
                      bg-parchment z-10 cursor-pointer"
           onClick={onDismiss}
+          onTouchStart={handleTouchStart}
+          onTouchMove={handleTouchMove}
+          onTouchEnd={handleTouchEnd}
         >
           <div className="w-10 h-1 bg-moss rounded-full" />
         </div>
 
         {/* Header */}
-        <div className="mx-3 bg-fern rounded-xl p-4 mb-4 flex items-center gap-3">
-          <div className="w-12 h-12 bg-dark/30 rounded-lg flex items-center
-                          justify-center flex-shrink-0">
-            <SownIcon size={28} fill="#D4DCCA" />
+        {plant.photo_url ? (
+          <div className="mx-3 mb-4 rounded-xl overflow-hidden relative">
+            <img
+              src={plant.photo_url}
+              alt={plant.common_name}
+              className="w-full h-36 object-cover"
+            />
+            <div className="absolute inset-0 bg-gradient-to-t from-dark/70 to-transparent" />
+            <div className="absolute top-2 right-2">
+              <div className="bg-dark/50 text-sage text-[10px] px-2 py-1 rounded-full">
+                {plant.source === 'label' ? 'label read' : `${Math.round(probability * 100)}% match`}
+              </div>
+            </div>
+            <div className="absolute bottom-0 left-0 right-0 px-4 py-3">
+              <p className="font-serif text-sage text-base leading-tight">{plant.common_name}</p>
+              <p className="text-xs text-sage/70 italic mt-0.5">{plant.latin_name}</p>
+            </div>
           </div>
-          <div className="flex-1 min-w-0">
-            <p className="font-serif text-sage text-base leading-tight">
-              {plant.common_name}
-            </p>
-            <p className="text-xs text-moss italic mt-0.5">{plant.latin_name}</p>
+        ) : (
+          <div className="mx-3 bg-fern rounded-xl p-4 mb-4 flex items-center gap-3">
+            <div className="w-12 h-12 bg-dark/30 rounded-lg flex items-center
+                            justify-center flex-shrink-0">
+              <SownIcon size={28} fill="#D4DCCA" />
+            </div>
+            <div className="flex-1 min-w-0">
+              <p className="font-serif text-sage text-base leading-tight">
+                {plant.common_name}
+              </p>
+              <p className="text-xs text-moss italic mt-0.5">{plant.latin_name}</p>
+            </div>
+            <div className="bg-dark/20 text-sage text-[10px] px-2 py-1 rounded-full flex-shrink-0">
+              {plant.source === 'label' ? 'label read' : `${Math.round(probability * 100)}% match`}
+            </div>
           </div>
-          <div className="bg-dark/20 text-sage text-[10px] px-2 py-1 rounded-full flex-shrink-0">
-            {plant.source === 'label' ? 'label read' : `${Math.round(probability * 100)}% match`}
-          </div>
-        </div>
+        )}
 
         <div className="px-4 pb-24 flex flex-col gap-3">
 
@@ -292,6 +351,9 @@ export default function Scan() {
   const [mode, setMode]           = useState('camera')   // 'camera' | 'search'
   const [cameraReady, setCamReady] = useState(false)
   const [cameraError, setCamError] = useState(null)
+  const [cameraGranted, setCameraGranted] = useState(
+    () => !!localStorage.getItem('sown_camera_granted')
+  )
   const [scanning, setScanning]   = useState(false)
   const [search, setSearch]       = useState('')
   const [searchResults, setSearchResults] = useState([])
@@ -358,9 +420,13 @@ export default function Scan() {
         await videoRef.current.play()
         setCamReady(true)
       }
+      localStorage.setItem('sown_camera_granted', '1')
+      setCameraGranted(true)
     } catch (err) {
       // Common errors: NotAllowedError (permission denied), NotFoundError (no camera)
       if (err.name === 'NotAllowedError') {
+        localStorage.removeItem('sown_camera_granted')
+        setCameraGranted(false)
         setCamError('Camera permission denied. Please allow camera access in your browser settings.')
       } else if (err.name === 'NotFoundError') {
         setCamError('No camera found on this device.')
@@ -381,9 +447,9 @@ export default function Scan() {
 
   // ── Lifecycle ──────────────────────────────────────────────────────────────
   useEffect(() => {
-    if (mode === 'camera') startCamera()
+    if (mode === 'camera' && cameraGranted) startCamera()
     return () => stopCamera()
-  }, [mode, startCamera, stopCamera])
+  }, [mode, cameraGranted, startCamera, stopCamera])
 
   // ── Capture frame & identify ───────────────────────────────────────────────
   const handleIdentify = async () => {
@@ -402,6 +468,9 @@ export default function Scan() {
 
     try {
       const identified = await identifyPlant(base64)
+      // Fetch photo now so it shows in the card and is ready to save
+      const photoUrl = await fetchWikipediaPhoto(identified.plant.latin_name)
+      if (photoUrl) identified.plant.photo_url = photoUrl
       setResult(identified)
     } catch (err) {
       showToast('Could not identify plant — try again or search by name')
@@ -416,6 +485,8 @@ export default function Scan() {
     setLookingUp(true)
     try {
       const plant = await lookupPlantByName(plantName)
+      const photoUrl = await fetchWikipediaPhoto(plant.latin_name)
+      if (photoUrl) plant.photo_url = photoUrl
       setResult({ plant, probability: 1, addedAs: 'want to grow' })
     } catch (err) {
       console.error('[Sown] name lookup failed:', err)
@@ -474,17 +545,31 @@ export default function Scan() {
     setShowZonePicker(false)
     try {
       // 1. Upsert plant into plants table
+      const p = result.plant
+      const photoUrl = p.photo_url || null
       const { data: plantRow, error: plantErr } = await supabase
         .from('plants')
         .upsert({
-          common_name:       result.plant.common_name,
-          latin_name:        result.plant.latin_name,
-          sun_requirements:  result.plant.sun_requirements,
-          soil_type:         result.plant.soil_type,
-          aspect:            result.plant.aspect,
-          flowering_season:  result.plant.flowering_season,
-          care_notes:        result.plant.care_notes,
-          photo_url:         result.plant.photo_url,
+          common_name:      p.common_name,
+          latin_name:       p.latin_name,
+          sun_requirements: p.sun_requirements,
+          soil_type:        p.soil_type,
+          aspect:           p.aspect,
+          height:           p.height           || null,
+          spread:           p.spread           || null,
+          flowering_season: p.flowering_season || null,
+          growth_rate:      p.growth_rate      || null,
+          frost_hardiness:  p.frost_hardiness  || null,
+          watering:         p.watering         || null,
+          pruning_when:     p.pruning_when     || null,
+          pruning_how:      p.pruning_how      || null,
+          winter_care:      p.winter_care      || null,
+          care_notes:       p.care_notes       || null,
+          wildlife_value:   p.wildlife_value   || null,
+          toxic:            p.toxic            || null,
+          notes_for_buyer:  p.notes_for_buyer  || null,
+          care_calendar:    p.care_calendar    || null,
+          photo_url:        photoUrl           || null,
         }, { onConflict: 'latin_name' })
         .select()
         .single()
@@ -511,6 +596,7 @@ export default function Scan() {
       setTimeout(() => navigate('/library'), 1200)
 
     } catch (err) {
+      console.error('[Sown] Save failed:', err)
       showToast('Could not save — please try again')
     } finally {
       setSaving(false)
@@ -594,8 +680,27 @@ export default function Scan() {
             {/* Scan overlay (corner brackets + animated line) */}
             {cameraReady && !scanning && <ScanOverlay />}
 
-            {/* Loading state */}
-            {!cameraReady && !cameraError && (
+            {/* First-visit prompt — user must tap to trigger permission */}
+            {!cameraReady && !cameraError && !cameraGranted && (
+              <div className="absolute inset-0 flex flex-col items-center
+                              justify-center gap-4 px-6 text-center">
+                <SownIcon size={40} fill="#D4DCCA" />
+                <p className="text-sage/80 text-sm leading-relaxed">
+                  Sown needs camera access to identify your plants
+                </p>
+                <button
+                  onClick={startCamera}
+                  className="bg-fern text-sage text-sm font-medium
+                             px-6 py-3 rounded-xl tracking-wide
+                             active:opacity-80 transition-opacity"
+                >
+                  Allow camera
+                </button>
+              </div>
+            )}
+
+            {/* Loading state — after permission granted */}
+            {!cameraReady && !cameraError && cameraGranted && (
               <div className="absolute inset-0 flex flex-col items-center
                               justify-center gap-3">
                 <div className="w-8 h-8 border-2 border-sage/30
@@ -790,7 +895,9 @@ export default function Scan() {
       {result && (
         <PlantProfileCard
           result={result}
-          onSave={handleOpenZonePicker}
+          onSave={result.addedAs === 'want to grow'
+            ? () => handleSave(null)   // wishlist — no zone needed
+            : handleOpenZonePicker}
           onDismiss={() => setResult(null)}
           saving={saving}
         />
@@ -804,7 +911,8 @@ export default function Scan() {
             onClick={() => setShowZonePicker(false)}
           />
           <div className="fixed bottom-0 left-0 right-0 max-w-md mx-auto
-                          bg-parchment rounded-t-2xl z-[70] pb-safe">
+                          bg-parchment rounded-t-2xl z-[70] pb-safe
+                          overflow-x-hidden w-full">
 
             {/* Handle */}
             <div className="flex justify-center pt-3 pb-1">

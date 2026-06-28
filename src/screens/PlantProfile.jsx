@@ -20,6 +20,7 @@ import { useState, useEffect } from 'react'
 import { useNavigate, useLocation, useParams } from 'react-router-dom'
 import { supabase } from '../lib/supabase'
 import TopBar from '../components/TopBar'
+import SownIcon from '../components/SownIcon'
 
 // ─── Constants ────────────────────────────────────────────────
 const MONTHS = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec']
@@ -35,26 +36,6 @@ const GARDEN_LOCATIONS = [
   'Raised bed',
   'Pot / container',
 ]
-
-// ─── Seed S mark ────────────────────────────────────────────────────────
-function SeedMark({ size = 16, color = '#4A5940' }) {
-  const h = size, w = size * 0.75
-  const rx = w * 0.45, ry = h * 0.3
-  const cy1 = h * 0.28, cy2 = h * 0.72
-  return (
-    <svg width={w} height={h} viewBox={`0 0 ${w} ${h}`} aria-hidden="true">
-      <ellipse cx={w/2} cy={cy1} rx={rx} ry={ry} fill={color}/>
-      <line x1={w*0.25} y1={h*0.1} x2={w*0.55} y2={h*0.35}
-        stroke={color==='#4A5940'?'#D4DCCA':'#4A5940'}
-        strokeWidth="0.7" strokeLinecap="round" opacity="0.45"/>
-      <ellipse cx={w/2} cy={cy2} rx={rx} ry={ry} fill={color}
-        transform={`rotate(180 ${w/2} ${cy2})`}/>
-      <line x1={w*0.35} y1={h*0.62} x2={w*0.65} y2={h*0.87}
-        stroke={color==='#4A5940'?'#D4DCCA':'#4A5940'}
-        strokeWidth="0.7" strokeLinecap="round" opacity="0.45"/>
-    </svg>
-  )
-}
 
 // ─── Botanical illustration ───────────────────────────────────────────
 function BotanicalIllustration({ name = '', color = '#4A5940', size = 80 }) {
@@ -180,7 +161,7 @@ function CompanionPill({ name }) {
   return (
     <div className="bg-white border border-moss/40 rounded-lg px-3 py-2
                     flex items-center gap-2">
-      <SeedMark size={14} color="#BFCAAD" />
+      <SownIcon size={14} fill="#BFCAAD" />
       <p className="text-xs text-dark">{name}</p>
     </div>
   )
@@ -429,7 +410,7 @@ export default function PlantProfile() {
               /* Placeholder when no photo available */
               <div className="w-full h-full flex flex-col items-center
                               justify-center gap-2 bg-fern">
-                <SeedMark size={40} color="#D4DCCA" />
+                <SownIcon size={40} fill="#D4DCCA" />
                 <p className="text-xs text-moss">No photo available</p>
               </div>
             )}
