@@ -14,7 +14,7 @@
 //   Open-Meteo — free, no API key required
 //   https://open-meteo.com/
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { supabase } from '../lib/supabase'
 import TopBar from '../components/TopBar'
@@ -247,6 +247,16 @@ function MonthNav({ month, year, onChange }) {
 
 // ─── Month strip (horizontal scroll) ─────────────────────────────────────────
 function MonthStrip({ month, year, onChange }) {
+  const activeRef = useRef(null)
+
+  useEffect(() => {
+    activeRef.current?.scrollIntoView({
+      behavior: 'smooth',
+      block: 'nearest',
+      inline: 'center',
+    })
+  }, [month])
+
   return (
     <div className="flex gap-1 px-4 pb-3 overflow-x-auto
                     scrollbar-none [-ms-overflow-style:none]
@@ -254,6 +264,7 @@ function MonthStrip({ month, year, onChange }) {
       {SHORT_MONTHS.map((m, i) => (
         <button
           key={m}
+          ref={month === i ? activeRef : null}
           onClick={() => onChange(i, year)}
           className={`flex-shrink-0 w-10 py-1.5 rounded-lg text-xs
                       font-medium tracking-wide transition-colors
@@ -368,7 +379,7 @@ export default function Calendar() {
         if (!user) return
         const { data } = await supabase
           .from('user_plants')
-          .select('id, plants(common_name, latin_name, care_calendar)')
+          .select('id, status, plants(common_name, latin_name, care_calendar, pruning_when, pruning_how, watering, winter_care, flowering_season)')
           .eq('user_id', user.id)
           .order('created_at', { ascending: true })
         setUserPlants(data || [])
@@ -589,20 +600,77 @@ export default function Calendar() {
 }
 
 // ─── Care calendar logic ───────────────────────────────────────────────────────
-// Reads from the care_calendar JSONB column on the plants table.
-// Each entry: { month: 1–12, task: string, detail: string }
+
+// Parse month numbers from free-text strings like "March", "spring", "after flowering in August"
+function parseMonthRefs(text) {
+  if (!text) return []
+  const lower = text.toLowerCase()
+  const found = new Set()
+
+  const named = [
+    ['jan', 1], ['feb', 2], ['mar', 3], ['apr', 4], ['may', 5], ['jun', 6],
+    ['jul', 7], ['aug', 8], ['sep', 9], ['oct', 10], ['nov', 11], ['dec', 12],
+  ]
+  for (const [name, num] of named) {
+    if (lower.includes(name)) found.add(num)
+  }
+
+  if (lower.includes('spring'))  [3, 4, 5].forEach(m => found.add(m))
+  if (lower.includes('summer'))  [6, 7, 8].forEach(m => found.add(m))
+  if (lower.includes('autumn'))  [9, 10, 11].forEach(m => found.add(m))
+  if (lower.includes('winter'))  [12, 1, 2].forEach(m => found.add(m))
+
+  return [...found]
+}
+
+// Build fallback entries from plant text fields when care_calendar is absent
+function deriveCareCalendar(plant) {
+  const entries = []
+
+  if (plant.pruning_when) {
+    const months = parseMonthRefs(plant.pruning_when)
+    const detail = [plant.pruning_how, plant.pruning_when].filter(Boolean).join(' — ')
+    months.forEach(m => entries.push({ month: m, task: 'Prune', detail }))
+  }
+
+  if (plant.watering && !plant.watering.toLowerCase().includes('drought tolerant')) {
+    // Water reminders during peak growing season
+    ;[5, 6, 7, 8].forEach(m =>
+      entries.push({ month: m, task: 'Water', detail: plant.watering })
+    )
+  }
+
+  if (plant.winter_care) {
+    ;[10, 11].forEach(m =>
+      entries.push({ month: m, task: 'Winter prep', detail: plant.winter_care })
+    )
+  }
+
+  if (plant.flowering_season) {
+    const months = parseMonthRefs(plant.flowering_season)
+    months.forEach(m =>
+      entries.push({ month: m, task: 'Deadhead', detail: `Remove spent blooms to prolong flowering. ${plant.flowering_season}.` })
+    )
+  }
+
+  return entries
+}
 
 function getTasksForMonth(month, userPlants, isCurrentMonth) {
   const tasks       = []
   const now         = new Date()
   const weekOfMonth = Math.ceil(now.getDate() / 7)
-  const calMonth    = month + 1  // care_calendar uses 1-indexed months
+  const calMonth    = month + 1  // 1-indexed
 
   userPlants.forEach(row => {
     const plant = row.plants
-    if (!plant?.care_calendar) return
+    if (!plant) return
 
-    const monthEntries = plant.care_calendar.filter(e => e.month === calMonth)
+    const calendar = (plant.care_calendar?.length)
+      ? plant.care_calendar
+      : deriveCareCalendar(plant)
+
+    const monthEntries = calendar.filter(e => e.month === calMonth)
     if (monthEntries.length === 0) return
 
     monthEntries.forEach((entry, idx) => {
