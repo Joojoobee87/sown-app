@@ -101,13 +101,23 @@ function TaskCard({ task, isComplete, onToggle, toggling }) {
         <div className="w-1 self-stretch bg-clay rounded-full flex-shrink-0" />
       )}
 
-      {/* Plant icon — tap to expand detail */}
+      {/* Plant thumbnail — photo if available, botanical illustration fallback */}
       <button
         onClick={() => setExpanded(e => !e)}
-        className="w-10 h-10 bg-leaf rounded-lg flex items-center
-                   justify-center flex-shrink-0 active:opacity-70"
+        className="w-10 h-10 rounded-lg flex-shrink-0 overflow-hidden
+                   active:opacity-70 flex-shrink-0"
       >
-        <BotanicalThumb name={task.plant_name} size={24} />
+        {task.photo_url ? (
+          <img
+            src={task.photo_url}
+            alt={task.plant_name}
+            className="w-full h-full object-cover"
+          />
+        ) : (
+          <div className="w-full h-full bg-leaf flex items-center justify-center">
+            <BotanicalThumb name={task.plant_name} size={24} />
+          </div>
+        )}
       </button>
 
       {/* Content */}
@@ -402,7 +412,7 @@ export default function Calendar() {
         if (!user) return
         const { data } = await supabase
           .from('user_plants')
-          .select('id, status, plants(common_name, latin_name, care_calendar, pruning_when, pruning_how, watering, winter_care, flowering_season)')
+          .select('id, status, plants(common_name, latin_name, photo_url, care_calendar, pruning_when, pruning_how, watering, winter_care, flowering_season)')
           .eq('user_id', user.id)
           .order('created_at', { ascending: true })
         setUserPlants(data || [])
@@ -691,6 +701,7 @@ function getTasksForMonth(month, userPlants, isCurrentMonth) {
         user_plant_id: row.id,
         month:         calMonth,
         plant_name:    plant.common_name,
+        photo_url:     plant.photo_url || null,
         action:        entry.task,
         detail:        entry.detail,
         urgency,
