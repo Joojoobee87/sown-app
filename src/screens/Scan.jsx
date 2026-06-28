@@ -885,7 +885,8 @@ export default function Scan() {
             onClick={() => setShowZonePicker(false)}
           />
           <div className="fixed bottom-0 left-0 right-0 max-w-md mx-auto
-                          bg-parchment rounded-t-2xl z-[70] pb-safe">
+                          bg-parchment rounded-t-2xl z-[70] pb-safe
+                          overflow-x-hidden w-full">
 
             {/* Handle */}
             <div className="flex justify-center pt-3 pb-1">

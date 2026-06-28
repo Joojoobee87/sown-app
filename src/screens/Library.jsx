@@ -229,7 +229,7 @@ function PlantDetailSheet({ plant: initialPlant, onClose, onUpdate }) {
       <div
         className="fixed bottom-0 left-0 right-0 max-w-md mx-auto
                    bg-parchment rounded-t-2xl z-50 max-h-[85vh]
-                   overflow-y-auto"
+                   overflow-y-auto overflow-x-hidden w-full"
         style={{
           transform: dragY > 0 ? `translateY(${dragY}px)` : undefined,
           transition: dragY > 0 ? 'none' : 'transform 0.25s ease',

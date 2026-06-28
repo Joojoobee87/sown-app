@@ -104,7 +104,7 @@ function MenuDrawer({ onClose }) {
         </div>
 
         {/* Nav items */}
-        <nav className="flex-1 px-3 py-4 flex flex-col gap-0.5 overflow-y-auto">
+        <nav className="flex-1 px-3 py-4 flex flex-col gap-0.5 overflow-y-auto overflow-x-hidden">
           <button
             onClick={() => go('/profile')}
             className="w-full text-left px-4 py-3 rounded-xl text-sm text-dark
