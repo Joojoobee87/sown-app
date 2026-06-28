@@ -869,7 +869,9 @@ export default function Scan() {
       {result && (
         <PlantProfileCard
           result={result}
-          onSave={handleOpenZonePicker}
+          onSave={result.addedAs === 'want to grow'
+            ? () => handleSave(null)   // wishlist — no zone needed
+            : handleOpenZonePicker}
           onDismiss={() => setResult(null)}
           saving={saving}
         />
