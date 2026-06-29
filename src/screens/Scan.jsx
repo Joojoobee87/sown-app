@@ -90,6 +90,125 @@ function ScanOverlay() {
   )
 }
 
+// ─── Zone-plant RAG compatibility scoring ────────────────────────────────────
+const SUNNY_ASPECTS   = new Set(['S','SE','SW'])
+const SHADY_ASPECTS   = new Set(['N','NE','NW'])
+
+function scoreZoneForPlant(plant, zone) {
+  if (!zone.aspect && !zone.sun_exposure && !zone.soil_type) {
+    return { rag: 'unknown', label: 'No data', reasons: [] }
+  }
+
+  const issues   = []  // red flags
+  const warnings = []  // amber flags
+  const positives = [] // things that look good
+
+  const plantSun  = (plant.sun_requirements || '').toLowerCase()
+  const zoneSun   = (zone.sun_exposure     || '').toLowerCase()
+  const plantSoil = (plant.soil_type        || '').toLowerCase()
+  const zoneSoil  = (zone.soil_type         || '').toLowerCase()
+  const zoneAspect = (zone.aspect           || '').toUpperCase()
+  const plantAspect = (plant.aspect         || '').toLowerCase()
+  const plantFrost  = (plant.frost_hardiness|| '').toLowerCase()
+  const zoneDrain  = (zone.soil_drainage    || '').toLowerCase()
+
+  // ── Sun matching ──
+  if (plantSun && zoneSun) {
+    const needsFullSun  = plantSun.includes('full sun') && !plantSun.includes('partial')
+    const needsShade    = plantSun.includes('full shade')
+    const toleratesPartial = plantSun.includes('partial')
+    const zoneIsShady   = zoneSun.includes('full shade')
+    const zoneIsSunny   = zoneSun.includes('full sun') && !zoneSun.includes('partial')
+    const zoneIsPartial = zoneSun.includes('partial')
+
+    if (needsFullSun && zoneIsShady) {
+      issues.push('Needs full sun — this zone is shaded')
+    } else if (needsFullSun && zoneIsPartial) {
+      warnings.push('Prefers full sun; this zone is partially shaded')
+    } else if (needsShade && zoneIsSunny) {
+      issues.push('Needs shade — this zone gets full sun')
+    } else if (toleratesPartial && !zoneIsShady) {
+      positives.push('Sun conditions look suitable')
+    } else {
+      positives.push('Sun conditions match well')
+    }
+  }
+
+  // ── Aspect matching (plant aspect hint vs zone facing) ──
+  if (zoneAspect && plantAspect && plantAspect !== 'any') {
+    const zoneFacingSunny = SUNNY_ASPECTS.has(zoneAspect)
+    const zoneFacingShady = SHADY_ASPECTS.has(zoneAspect)
+    const plantNeedsSun   = plantAspect.includes('s') && !plantAspect.includes('n')
+    const plantNeedsShade = plantAspect.includes('n') && !plantAspect.includes('s')
+
+    if (plantNeedsSun && zoneFacingShady) {
+      warnings.push(`Zone faces ${zoneAspect} — plant prefers a sunnier spot`)
+    } else if (plantNeedsShade && zoneFacingSunny) {
+      warnings.push(`Zone faces ${zoneAspect} — plant may prefer a shadier aspect`)
+    }
+  }
+
+  // ── Soil matching ──
+  if (plantSoil && zoneSoil) {
+    const plantNeedsDrained = plantSoil.includes('well drained') || plantSoil.includes('sandy')
+    const plantNeedsMoist   = plantSoil.includes('moist')
+    const zoneIsClay        = zoneSoil.includes('clay')
+    const zoneIsSandy       = zoneSoil.includes('sandy')
+    const zoneIsMoist       = zoneSoil.includes('moist') || zoneIsClay
+
+    if (plantNeedsDrained && zoneIsClay) {
+      warnings.push('Plant prefers free-draining soil; clay may need improving')
+    } else if (plantNeedsMoist && zoneIsSandy) {
+      warnings.push('Plant likes moisture-retentive soil; sandy soil may dry out')
+    } else {
+      positives.push('Soil type looks compatible')
+    }
+  }
+
+  // ── Drainage matching ──
+  if (zoneDrain && plantSoil) {
+    const poorlyDrained = zoneDrain.includes('poorly')
+    const plantHatesSoggy = plantSoil.includes('well drained') || plantSoil.includes('sandy')
+    if (poorlyDrained && plantHatesSoggy) {
+      issues.push('Poor drainage — this plant needs free-draining conditions')
+    }
+  }
+
+  // ── Frost / hardiness matching ──
+  if (plantFrost && zone.frost_pocket) {
+    const isTender   = plantFrost.includes('tender') || plantFrost.includes('half hardy')
+    const isHalfHardy = plantFrost.includes('half hardy')
+    if (isTender) {
+      issues.push('Tender plant — frost pocket increases risk of winter losses')
+    } else if (isHalfHardy) {
+      warnings.push('Half-hardy — frost pocket may need extra winter protection')
+    }
+  }
+
+  // ── Shelter matching ──
+  if (zone.shelter && plantFrost) {
+    const isExposed  = (zone.shelter || '').toLowerCase().includes('exposed')
+    const isTender   = plantFrost.includes('tender') || plantFrost.includes('half hardy')
+    if (isExposed && isTender) {
+      warnings.push('Exposed site — consider shelter for this tender plant')
+    }
+  }
+
+  // ── Determine RAG from issues/warnings ──
+  let rag
+  if (issues.length > 0)   rag = 'red'
+  else if (warnings.length > 0) rag = 'amber'
+  else                           rag = 'green'
+
+  const label = rag === 'green' ? 'Good match'
+              : rag === 'amber' ? 'Some concerns'
+              : 'Poor match'
+
+  const topReason = issues[0] || warnings[0] || positives[0] || null
+
+  return { rag, label, topReason, issues, warnings, positives }
+}
+
 // ─── Plant profile card (shown after identification) ──────────────────────────
 function PlantProfileCard({ result, onSave, onDismiss, saving }) {
   const { plant, probability, addedAs } = result
@@ -515,7 +634,7 @@ export default function Scan() {
     return () => clearTimeout(timer)
   }, [search])
 
-  // ── Fetch user's garden zones ──────────────────────────────────────────────
+  // ── Fetch user's garden zones (with all condition fields for RAG matching) ──
   const fetchZones = async () => {
     setZonesLoading(true)
     try {
@@ -523,7 +642,7 @@ export default function Scan() {
       if (!user) return
       const { data } = await supabase
         .from('garden_zones')
-        .select('id, name')
+        .select('id, name, aspect, sun_exposure, soil_type, soil_drainage, shelter, frost_pocket')
         .eq('user_id', user.id)
         .order('created_at', { ascending: true })
       setZones(data || [])
@@ -963,27 +1082,63 @@ export default function Scan() {
                                   border-t-moss rounded-full animate-spin" />
                 </div>
               ) : (
-                <div className="flex flex-col gap-2 max-h-52 overflow-y-auto mb-4">
-                  {zones.map(zone => (
-                    <button
-                      key={zone.id}
-                      onClick={() => handleSave(zone.name)}
-                      disabled={saving}
-                      className="w-full bg-white border border-moss/40
-                                 rounded-xl px-4 py-3 text-left text-sm
-                                 text-dark font-medium
-                                 active:bg-leaf transition-colors
-                                 disabled:opacity-50"
-                    >
-                      {zone.name}
-                    </button>
-                  ))}
+                <div className="flex flex-col gap-2 max-h-64 overflow-y-auto mb-4">
+                  {(() => {
+                    const plant = result?.plant
+                    const scored = zones.map(zone => ({
+                      zone,
+                      score: plant ? scoreZoneForPlant(plant, zone) : { rag: 'unknown', label: '', topReason: null },
+                    }))
+                    const ragOrder = { green: 0, amber: 1, unknown: 2, red: 3 }
+                    scored.sort((a, b) => ragOrder[a.score.rag] - ragOrder[b.score.rag])
 
-                  {zones.length === 0 && (
-                    <p className="text-sm text-subtle text-center py-3">
-                      No zones yet — create your first one below
-                    </p>
-                  )}
+                    if (scored.length === 0) {
+                      return (
+                        <p className="text-sm text-subtle text-center py-3">
+                          No zones yet — create your first one below
+                        </p>
+                      )
+                    }
+
+                    return scored.map(({ zone, score }) => {
+                      const dot = score.rag === 'green'   ? 'bg-green-500'
+                                : score.rag === 'amber'   ? 'bg-amber-400'
+                                : score.rag === 'red'     ? 'bg-red-500'
+                                : 'bg-moss/30'
+                      const badge = score.rag === 'green'  ? 'text-green-700 bg-green-50 border-green-200'
+                                  : score.rag === 'amber'  ? 'text-amber-700 bg-amber-50 border-amber-200'
+                                  : score.rag === 'red'    ? 'text-red-700 bg-red-50 border-red-200'
+                                  : 'text-subtle bg-stone-50 border-stone-200'
+                      return (
+                        <button
+                          key={zone.id}
+                          onClick={() => handleSave(zone.name)}
+                          disabled={saving}
+                          className="w-full bg-white border border-moss/40
+                                     rounded-xl px-4 py-3 text-left
+                                     active:bg-leaf transition-colors
+                                     disabled:opacity-50"
+                        >
+                          <div className="flex items-center justify-between gap-2">
+                            <div className="flex items-center gap-2 min-w-0">
+                              <span className={`w-2.5 h-2.5 rounded-full flex-shrink-0 ${dot}`} />
+                              <span className="text-sm text-dark font-medium truncate">{zone.name}</span>
+                            </div>
+                            {score.rag !== 'unknown' && (
+                              <span className={`text-[10px] font-semibold px-2 py-0.5 rounded-full border flex-shrink-0 ${badge}`}>
+                                {score.label}
+                              </span>
+                            )}
+                          </div>
+                          {score.topReason && (
+                            <p className="text-xs text-subtle mt-1 pl-[18px] leading-snug">
+                              {score.topReason}
+                            </p>
+                          )}
+                        </button>
+                      )
+                    })
+                  })()}
                 </div>
               )}
 
