@@ -131,26 +131,222 @@ function PushPromptCard({ onEnable, onDismiss }) {
   )
 }
 
-// ─── Weather placeholder ──────────────────────────────────────────────────────
-function WeatherCard() {
-  const month = new Date().toLocaleString('en-GB', { month: 'long' })
-  const day   = new Date().toLocaleString('en-GB', { weekday: 'long' })
+// ─── Weather helpers ──────────────────────────────────────────────────────────
+function wmoLabel(code) {
+  if (code === 0)  return 'Clear sky'
+  if (code <= 2)   return 'Partly cloudy'
+  if (code === 3)  return 'Overcast'
+  if (code <= 48)  return 'Foggy'
+  if (code <= 55)  return 'Drizzle'
+  if (code <= 65)  return 'Rain'
+  if (code <= 77)  return 'Snow'
+  if (code <= 82)  return 'Showers'
+  if (code <= 86)  return 'Snow showers'
+  return 'Thunderstorm'
+}
+
+function wmoEmoji(code) {
+  if (code === 0)  return '☀️'
+  if (code <= 2)   return '⛅'
+  if (code === 3)  return '☁️'
+  if (code <= 48)  return '🌫️'
+  if (code <= 65)  return '🌧️'
+  if (code <= 77)  return '🌨️'
+  if (code <= 82)  return '🌦️'
+  if (code <= 86)  return '🌨️'
+  return '⛈️'
+}
+
+function WeatherIcon({ code, size = 32 }) {
+  const s = size
+  const col = '#4A5940'
+  const w = '1.5'
+  if (code === 0) return (
+    <svg width={s} height={s} viewBox="0 0 32 32" fill="none">
+      <circle cx="16" cy="16" r="5" stroke={col} strokeWidth={w}/>
+      {[0,45,90,135,180,225,270,315].map(a => {
+        const rad = a * Math.PI / 180
+        return <line key={a}
+          x1={16 + 8 * Math.cos(rad)} y1={16 + 8 * Math.sin(rad)}
+          x2={16 + 11 * Math.cos(rad)} y2={16 + 11 * Math.sin(rad)}
+          stroke={col} strokeWidth={w} strokeLinecap="round"/>
+      })}
+    </svg>
+  )
+  if (code <= 2) return (
+    <svg width={s} height={s} viewBox="0 0 32 32" fill="none">
+      <circle cx="13" cy="12" r="4" stroke={col} strokeWidth={w}/>
+      <line x1="13" y1="5" x2="13" y2="7" stroke={col} strokeWidth={w} strokeLinecap="round"/>
+      <line x1="6"  y1="12" x2="8" y2="12" stroke={col} strokeWidth={w} strokeLinecap="round"/>
+      <line x1="18.5" y1="6.5" x2="17.1" y2="7.9" stroke={col} strokeWidth={w} strokeLinecap="round"/>
+      <path d="M10 22a5 5 0 0 1 5-5h6a4 4 0 0 1 0 8h-8a3 3 0 0 1-3-3z" stroke={col} strokeWidth={w} fill="none"/>
+    </svg>
+  )
+  if (code <= 65 || (code >= 80 && code <= 82)) return (
+    <svg width={s} height={s} viewBox="0 0 32 32" fill="none">
+      <path d="M5 16a7 7 0 0 1 7-7h8a5 5 0 0 1 0 10H10a5 5 0 0 1-5-3z" stroke={col} strokeWidth={w} fill="none"/>
+      <line x1="10" y1="23" x2="8"  y2="27" stroke={col} strokeWidth={w} strokeLinecap="round"/>
+      <line x1="16" y1="23" x2="14" y2="27" stroke={col} strokeWidth={w} strokeLinecap="round"/>
+      <line x1="22" y1="23" x2="20" y2="27" stroke={col} strokeWidth={w} strokeLinecap="round"/>
+    </svg>
+  )
+  if (code <= 86) return (
+    <svg width={s} height={s} viewBox="0 0 32 32" fill="none">
+      <path d="M5 16a7 7 0 0 1 7-7h8a5 5 0 0 1 0 10H10a5 5 0 0 1-5-3z" stroke={col} strokeWidth={w} fill="none"/>
+      <circle cx="10" cy="25" r="1.5" fill={col}/>
+      <circle cx="16" cy="25" r="1.5" fill={col}/>
+      <circle cx="22" cy="25" r="1.5" fill={col}/>
+    </svg>
+  )
   return (
-    <div className="bg-white border border-moss/40 rounded-xl p-4
-                    flex items-center justify-between">
-      <div>
-        <p className="text-xs text-subtle uppercase tracking-widest mb-0.5">
-          {day}, {month}
-        </p>
-        <p className="text-sm text-muted">Weather integration coming soon</p>
+    <svg width={s} height={s} viewBox="0 0 32 32" fill="none">
+      <path d="M5 15a7 7 0 0 1 7-7h8a5 5 0 0 1 0 10H10a5 5 0 0 1-5-3z" stroke={col} strokeWidth={w} fill="none"/>
+      <path d="M18 18l-4 5h5l-4 6" stroke={col} strokeWidth={w} strokeLinecap="round" strokeLinejoin="round"/>
+    </svg>
+  )
+}
+
+// ─── Weather card ─────────────────────────────────────────────────────────────
+function WeatherCard() {
+  const [wx, setWx]         = useState(null)
+  const [loading, setLoading] = useState(true)
+  const [place, setPlace]   = useState(null)
+
+  useEffect(() => {
+    // Serve from cache if < 2 hours old
+    try {
+      const cached = localStorage.getItem('sown_weather_v1')
+      if (cached) {
+        const { data, timestamp, locationName } = JSON.parse(cached)
+        if (Date.now() - timestamp < 7200000) {
+          setWx(data); setPlace(locationName); setLoading(false); return
+        }
+      }
+    } catch {}
+
+    const load = async () => {
+      let lat = 52.4862, lon = -1.8904  // UK midlands default
+      if (navigator.geolocation) {
+        await new Promise(res => navigator.geolocation.getCurrentPosition(
+          p => { lat = p.coords.latitude; lon = p.coords.longitude; res() },
+          () => res(),
+          { timeout: 5000, maximumAge: 600000 }
+        ))
+      }
+
+      // Reverse geocode for place name
+      let locationName = null
+      try {
+        const geo = await fetch(
+          `https://nominatim.openstreetmap.org/reverse?lat=${lat}&lon=${lon}&format=json`,
+          { headers: { 'Accept-Language': 'en' } }
+        )
+        const gd = await geo.json()
+        locationName = gd.address?.city || gd.address?.town || gd.address?.village || null
+      } catch {}
+
+      // Fetch weather — past_days=1 gives yesterday at index 0, today at index 1
+      try {
+        const res = await fetch(
+          `https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}` +
+          `&current=temperature_2m,weather_code` +
+          `&daily=temperature_2m_max,temperature_2m_min,precipitation_sum,weather_code` +
+          `&timezone=Europe%2FLondon&forecast_days=4&past_days=1`
+        )
+        const raw = await res.json()
+        const d = raw.daily
+        const data = {
+          current:   { temp: Math.round(raw.current.temperature_2m), code: raw.current.weather_code },
+          today:     { max: Math.round(d.temperature_2m_max[1]), min: Math.round(d.temperature_2m_min[1]),
+                       precip: d.precipitation_sum[1], code: d.weather_code[1] },
+          yesterday: { precip: d.precipitation_sum[0] },
+          forecast:  [2, 3, 4].map(i => ({
+            date: d.time[i], max: Math.round(d.temperature_2m_max[i]), code: d.weather_code[i],
+          })),
+        }
+        setWx(data)
+        setPlace(locationName)
+        try {
+          localStorage.setItem('sown_weather_v1', JSON.stringify({ data, timestamp: Date.now(), locationName }))
+        } catch {}
+      } catch {
+        // silent — card just doesn't render
+      } finally {
+        setLoading(false)
+      }
+    }
+    load()
+  }, [])
+
+  if (loading) return (
+    <div className="bg-white border border-moss/40 rounded-xl p-4">
+      <div className="flex items-center gap-3">
+        <div className="w-8 h-8 rounded-full bg-moss/10 animate-pulse flex-shrink-0"/>
+        <div className="flex-1">
+          <div className="h-3 w-20 bg-moss/10 rounded animate-pulse mb-2"/>
+          <div className="h-2.5 w-32 bg-moss/10 rounded animate-pulse"/>
+        </div>
+        <div className="h-7 w-10 bg-moss/10 rounded animate-pulse"/>
       </div>
-      {/* Cloud / sun icon */}
-      <svg width="36" height="36" viewBox="0 0 36 36" fill="none"
-           className="opacity-30 flex-shrink-0">
-        <circle cx="22" cy="14" r="7" stroke="#4A5940" strokeWidth="1.5"/>
-        <path d="M6 22a6 6 0 0 1 6-6h14a5 5 0 0 1 0 10H10a4 4 0 0 1-4-4Z"
-          stroke="#4A5940" strokeWidth="1.5" fill="none"/>
-      </svg>
+    </div>
+  )
+
+  if (!wx) return null
+
+  // Gardening hint — most useful contextual message for right now
+  let hint = null
+  if (wx.today.min <= 0)
+    hint = 'Frost likely tonight — protect tender plants now'
+  else if (wx.today.min <= 2)
+    hint = 'Near-freezing tonight — bring in tender pots'
+  else if (wx.yesterday.precip > 8)
+    hint = 'Good rainfall yesterday — hold off watering today'
+  else if (wx.today.precip > 5)
+    hint = 'Rain expected today — soil should stay moist'
+  else if (wx.today.code === 0 && wx.today.max > 22)
+    hint = 'Hot and sunny — water plants in the evening to reduce evaporation'
+  else if (wx.yesterday.precip < 1 && wx.today.precip < 1 && wx.today.max > 18)
+    hint = 'Dry spell — check soil moisture and water if needed'
+
+  const DAY = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat']
+
+  return (
+    <div className="bg-white border border-moss/40 rounded-xl overflow-hidden">
+      {/* Current conditions */}
+      <div className="flex items-center gap-3 px-4 pt-4 pb-3">
+        <WeatherIcon code={wx.current.code} size={36}/>
+        <div className="flex-1 min-w-0">
+          {place && (
+            <p className="text-[10px] text-subtle uppercase tracking-widest mb-0.5">{place}</p>
+          )}
+          <p className="text-sm font-medium text-dark leading-tight">{wmoLabel(wx.today.code)}</p>
+          <p className="text-xs text-subtle mt-0.5">H {wx.today.max}° · L {wx.today.min}°</p>
+        </div>
+        <p className="font-serif text-dark text-3xl leading-none flex-shrink-0">
+          {wx.current.temp}°
+        </p>
+      </div>
+
+      {/* Gardening hint */}
+      {hint && (
+        <div className="mx-4 mb-3 bg-leaf rounded-lg px-3 py-2">
+          <p className="text-xs text-dark leading-relaxed">{hint}</p>
+        </div>
+      )}
+
+      {/* 3-day forecast */}
+      <div className="border-t border-moss/20 px-4 py-3 flex justify-around">
+        {wx.forecast.map(day => {
+          const dayName = DAY[new Date(day.date + 'T12:00:00').getDay()]
+          return (
+            <div key={day.date} className="flex flex-col items-center gap-1">
+              <p className="text-[10px] text-subtle font-medium uppercase tracking-wide">{dayName}</p>
+              <span className="text-base leading-none">{wmoEmoji(day.code)}</span>
+              <p className="text-xs text-dark font-medium">{day.max}°</p>
+            </div>
+          )
+        })}
+      </div>
     </div>
   )
 }
