@@ -1072,8 +1072,11 @@ export default function Scan() {
               <h2 className="font-serif text-dark text-lg mb-1">
                 Choose a garden zone
               </h2>
-              <p className="text-sm text-subtle mb-4">
+              <p className="text-sm text-subtle mb-1">
                 Where will this plant live?
+              </p>
+              <p className="text-[10px] text-clay mb-3 font-mono">
+                dbg: plant={result?.plant?.common_name||'none'} zones={zones.length} cond={zones.filter(z=>z.sun_exposure||z.aspect||z.soil_type).length}
               </p>
 
               {zonesLoading ? (
