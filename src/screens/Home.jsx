@@ -22,15 +22,69 @@ const SEASONAL_TIPS = [
   "Rest and plan. Sharpen tools, order seeds and look forward to spring.",      // Dec
 ]
 
-// ─── Gardening quotes — shown when the library is empty ──────────────────────
-const QUOTES = [
-  { text: "The love of gardening is a seed once sown that never dies.", author: "Gertrude Jekyll" },
+// ─── Daily quotes — 60 voices on gardens, nature & the living world ──────────
+const DAILY_QUOTES = [
   { text: "To plant a garden is to believe in tomorrow.", author: "Audrey Hepburn" },
-  { text: "All gardening is landscape painting.", author: "William Kent" },
-  { text: "The best fertiliser is a gardener's shadow.", author: "Old English proverb" },
-  { text: "A garden is a grand teacher. It teaches patience and careful watchfulness.", author: "Gertrude Jekyll" },
+  { text: "The earth laughs in flowers.", author: "Ralph Waldo Emerson" },
+  { text: "The love of gardening is a seed once sown that never dies.", author: "Gertrude Jekyll" },
+  { text: "Adopt the pace of nature: her secret is patience.", author: "Ralph Waldo Emerson" },
+  { text: "No one will protect what they don't care about; and no one will care about what they have never experienced.", author: "Sir David Attenborough" },
+  { text: "The natural world is the greatest source of excitement; the greatest source of visual beauty; the greatest source of intellectual interest.", author: "Sir David Attenborough" },
+  { text: "Gardening is the most therapeutic and defiant act you can do, especially in the teeth of everything that assails modern life.", author: "Monty Don" },
   { text: "In every walk with Nature, one receives far more than he seeks.", author: "John Muir" },
+  { text: "The clearest way into the Universe is through a forest wilderness.", author: "John Muir" },
+  { text: "Of all the paths you take in life, make sure a few of them are dirt.", author: "John Muir" },
+  { text: "A garden is a grand teacher. It teaches patience and careful watchfulness.", author: "Gertrude Jekyll" },
+  { text: "There is no spot of ground, however arid, bare or ugly, that cannot be tamed into such a state as may give an impression of beauty and delight.", author: "Gertrude Jekyll" },
+  { text: "The most noteworthy thing about gardeners is that they are always optimistic, always enterprising, and never satisfied.", author: "Vita Sackville-West" },
+  { text: "No occupation is so delightful to me as the culture of the earth, and no culture comparable to that of the garden.", author: "Thomas Jefferson" },
+  { text: "God Almighty first planted a garden. And indeed it is the purest of human pleasures.", author: "Francis Bacon" },
+  { text: "We must cultivate our own garden.", author: "Voltaire" },
+  { text: "You can cut all the flowers but you cannot keep spring from coming.", author: "Pablo Neruda" },
+  { text: "Autumn is a second spring when every leaf is a flower.", author: "Albert Camus" },
+  { text: "The glory of gardening: hands in the dirt, head in the sun, heart with nature.", author: "Alfred Austin" },
+  { text: "There is no gardening without humility.", author: "Alfred Austin" },
+  { text: "Flowers always make people better, happier, and more helpful; they are sunshine, food and medicine for the soul.", author: "Luther Burbank" },
+  { text: "The garden suggests there might be a place where we can meet nature halfway.", author: "Michael Pollan" },
+  { text: "My garden is my most beautiful masterpiece.", author: "Claude Monet" },
+  { text: "I perhaps owe having become a painter to flowers.", author: "Claude Monet" },
+  { text: "Heaven is under our feet as well as over our heads.", author: "Henry David Thoreau" },
+  { text: "I went to the woods because I wished to live deliberately.", author: "Henry David Thoreau" },
+  { text: "What is the use of a house if you haven't got a tolerable planet to put it on?", author: "Henry David Thoreau" },
+  { text: "One touch of nature makes the whole world kin.", author: "William Shakespeare" },
+  { text: "It is rain that grows flowers, not thunder.", author: "Rumi" },
+  { text: "There is something infinitely healing in the repeated refrains of nature — the assurance that dawn comes after night, and spring after winter.", author: "Rachel Carson" },
+  { text: "Those who contemplate the beauty of the earth find reserves of strength that will endure as long as life lasts.", author: "Rachel Carson" },
+  { text: "All gardening is landscape painting.", author: "William Kent" },
   { text: "A society grows great when old men plant trees whose shade they know they shall never sit in.", author: "Greek proverb" },
+  { text: "The best fertiliser is a gardener's shadow.", author: "Old English proverb" },
+  { text: "The best time to plant a tree was 20 years ago. The second best time is now.", author: "Chinese proverb" },
+  { text: "Come forth into the light of things, let Nature be your teacher.", author: "William Wordsworth" },
+  { text: "Trees are poems that the earth writes upon the sky.", author: "Kahlil Gibran" },
+  { text: "A thing of beauty is a joy forever.", author: "John Keats" },
+  { text: "I believe a leaf of grass is no less than the journey-work of the stars.", author: "Walt Whitman" },
+  { text: "The soil is the great connector of lives, the source and destination of all.", author: "Wendell Berry" },
+  { text: "Paying attention is a form of reciprocity with the living world.", author: "Robin Wall Kimmerer" },
+  { text: "The land knows you, even when you are lost.", author: "Robin Wall Kimmerer" },
+  { text: "Nature always wears the colours of the spirit.", author: "Ralph Waldo Emerson" },
+  { text: "We are a part of the natural world, and our future depends on its future.", author: "Sir David Attenborough" },
+  { text: "The world is big and I want to have a good look at it before it gets dark.", author: "John Muir" },
+  { text: "Show me your garden and I shall tell you what you are.", author: "Alfred Austin" },
+  { text: "In all things of nature there is something of the marvellous.", author: "Aristotle" },
+  { text: "Look deep into nature, and then you will understand everything better.", author: "Albert Einstein" },
+  { text: "I go to nature to be soothed and healed, and to have my senses put in order.", author: "John Burroughs" },
+  { text: "To forget how to dig the earth and to tend the soil is to forget ourselves.", author: "Mahatma Gandhi" },
+  { text: "A garden requires patient labour and attention. Plants do not grow merely to satisfy ambitions or to fulfil good intentions.", author: "Liberty Hyde Bailey" },
+  { text: "My green thumb came only as a result of the mistakes I made while learning to see things from the plant's point of view.", author: "H. Fred Dale" },
+  { text: "There are no gardening mistakes, only experiments.", author: "Janet Kilburn Phillips" },
+  { text: "The love of flowers is really the best teacher of how to grow and understand them.", author: "Max Schling" },
+  { text: "Plant seeds of happiness, hope, success, and love; it will all come back to you in abundance. This is the law of nature.", author: "Steve Maraboli" },
+  { text: "I must have flowers, always and always.", author: "Claude Monet" },
+  { text: "To be overcome by the fragrance of flowers is a delectable form of defeat.", author: "Beverly Nichols" },
+  { text: "A garden is a delight to the eye and a solace for the soul.", author: "Saadi" },
+  { text: "Flowers are the music of the ground, from earth's lips spoken without sound.", author: "Edwin Curran" },
+  { text: "Gardens are not made by singing 'Oh, how beautiful!' and sitting in the shade.", author: "Rudyard Kipling" },
+  { text: "He who plants a tree plants a hope.", author: "Lucy Larcom" },
 ]
 
 // ─── Push notification prompt card ───────────────────────────────────────────
@@ -133,7 +187,10 @@ export default function Home() {
   // Seasonal tip for this month, or a rotating quote when no plants
   const monthIndex = new Date().getMonth()         // 0–11
   const seasonalTip = SEASONAL_TIPS[monthIndex]
-  const quote = QUOTES[new Date().getDate() % QUOTES.length]  // cycles by day of month
+
+  // Today's quote — cycles by day of year so it changes daily
+  const dayOfYear = Math.floor((Date.now() - new Date(new Date().getFullYear(), 0, 0)) / 86400000)
+  const todayQuote = DAILY_QUOTES[dayOfYear % DAILY_QUOTES.length]
 
   // Compute tasks inline during render — same pattern as Calendar
   const thisMonthTasks = getTasksForMonth(monthIndex, userPlants, true)
@@ -256,9 +313,9 @@ export default function Home() {
               Growing wisdom
             </p>
             <p className="text-sm text-dark leading-relaxed italic">
-              "{quote.text}"
+              "{todayQuote.text}"
             </p>
-            <p className="text-xs text-subtle mt-2">— {quote.author}</p>
+            <p className="text-xs text-subtle mt-2">— {todayQuote.author}</p>
           </div>
         )}
 
@@ -349,6 +406,17 @@ export default function Home() {
             onDismiss={handleDismissPush}
           />
         )}
+
+        {/* Today's thought — daily quote, always visible */}
+        <div className="bg-white border border-moss/40 rounded-xl p-4">
+          <p className="text-[10px] text-subtle uppercase tracking-widest mb-2">
+            Today's thought
+          </p>
+          <p className="font-serif text-dark text-sm leading-relaxed italic">
+            "{todayQuote.text}"
+          </p>
+          <p className="text-xs text-subtle mt-2">— {todayQuote.author}</p>
+        </div>
 
         {/* Weather placeholder */}
         <WeatherCard />
