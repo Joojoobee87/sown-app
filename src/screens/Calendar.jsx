@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { supabase } from '../lib/supabase'
-import { getTasksForMonth, normaliseCategory } from '../lib/careCalendar'
+import { getTasksForMonth } from '../lib/careCalendar'
 import TopBar from '../components/TopBar'
 import SownIcon from '../components/SownIcon'
 

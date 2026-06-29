@@ -38,7 +38,7 @@ function Field({ label, type = 'text', value, onChange, placeholder, autoComplet
           placeholder={placeholder}
           autoComplete={autoComplete}
           className="w-full bg-white border border-moss/40 rounded-xl
-                     px-4 py-3 text-sm text-dark placeholder:text-subtle/50
+                     px-4 py-3 text-base text-dark placeholder:text-subtle/50
                      focus:outline-none focus:border-fern transition-colors
                      pr-10"
         />
@@ -89,7 +89,7 @@ function GrowCodeField({ value, onChange, status }) {
           onChange={e => onChange(e.target.value.toUpperCase())}
           placeholder="e.g. SOWN-2026-ABCD"
           className="w-full bg-white border border-moss/40 rounded-xl
-                     px-4 py-3 text-sm text-dark placeholder:text-subtle/50
+                     px-4 py-3 text-base text-dark placeholder:text-subtle/50
                      focus:outline-none focus:border-fern transition-colors
                      font-mono tracking-wider pr-10"
         />
@@ -404,7 +404,7 @@ export default function Auth() {
 
   // ── Render ─────────────────────────────────────────────────────────────────
   return (
-    <div className="min-h-screen bg-fern flex flex-col">
+    <div className="min-h-screen bg-fern flex flex-col overflow-x-hidden">
 
       {/* Brand header */}
       <div className="flex flex-col items-center justify-center
