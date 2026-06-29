@@ -199,6 +199,17 @@ export default function Home() {
           </p>
         </div>
 
+        {/* TEMP DEBUG */}
+        {!loading && (
+          <div className="bg-clay/10 border border-clay/40 rounded-xl p-3 text-xs text-dark font-mono">
+            <p>plants state: {userPlants.length} rows</p>
+            <p>plantCount: {plantCount}</p>
+            <p>tasks: {thisMonthTasks.length}</p>
+            <p>row0.plants: {userPlants[0] ? (userPlants[0].plants ? 'object' : 'NULL') : 'no rows'}</p>
+            <p>row0 keys: {userPlants[0] ? Object.keys(userPlants[0]).join(', ') : '-'}</p>
+          </div>
+        )}
+
         {/* This month card — skeleton → real tasks → quote fallback */}
         {loading ? (
           <div className="bg-leaf rounded-xl p-4 border-l-[3px] border-fern">
