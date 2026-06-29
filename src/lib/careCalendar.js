@@ -54,11 +54,15 @@ export function getTasksForMonth(month, userPlants, isCurrentMonth) {
     const plant = row.plants
     if (!plant) return
 
-    const calendar = (plant.care_calendar?.length)
-      ? plant.care_calendar
-      : deriveCareCalendar(plant)
+    // Use AI care_calendar if it has entries for this month; otherwise fall back
+    // to derivation from text fields (watering, pruning_when, etc.)
+    const careCalForMonth = (plant.care_calendar?.length)
+      ? plant.care_calendar.filter(e => Number(e.month) === calMonth)
+      : []
 
-    const monthEntries = calendar.filter(e => Number(e.month) === calMonth)
+    const monthEntries = careCalForMonth.length > 0
+      ? careCalForMonth
+      : deriveCareCalendar(plant).filter(e => e.month === calMonth)
     if (monthEntries.length === 0) return
 
     monthEntries.forEach((entry, idx) => {
