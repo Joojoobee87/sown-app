@@ -152,7 +152,12 @@ export default function Home() {
         setZoneCount(zones ?? 0)
         if (plantsData) {
           const now = new Date()
-          setMonthTasks(getTasksForMonth(now.getMonth(), plantsData, true))
+          const tasks = getTasksForMonth(now.getMonth(), plantsData, true)
+          console.log('[Sown] plantsData[0]:', JSON.stringify(plantsData[0], null, 2))
+          console.log('[Sown] tasks for month', now.getMonth() + 1, ':', tasks.length, tasks)
+          setMonthTasks(tasks)
+        } else {
+          console.log('[Sown] plantsData is null')
         }
       } finally {
         setLoading(false)
