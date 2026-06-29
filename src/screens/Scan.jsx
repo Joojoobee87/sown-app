@@ -1100,15 +1100,23 @@ export default function Scan() {
                       )
                     }
 
-                    return scored.map(({ zone, score }) => {
-                      const dot = score.rag === 'green'   ? 'bg-green-500'
-                                : score.rag === 'amber'   ? 'bg-amber-400'
-                                : score.rag === 'red'     ? 'bg-red-500'
-                                : 'bg-moss/30'
-                      const badge = score.rag === 'green'  ? 'text-green-700 bg-green-50 border-green-200'
-                                  : score.rag === 'amber'  ? 'text-amber-700 bg-amber-50 border-amber-200'
-                                  : score.rag === 'red'    ? 'text-red-700 bg-red-50 border-red-200'
-                                  : 'text-subtle bg-stone-50 border-stone-200'
+                    const allUnknown = scored.length > 0 && scored.every(s => s.score.rag === 'unknown')
+
+                    return [
+                      ...scored.map(({ zone, score }) => {
+                      const dotStyle = score.rag === 'green'   ? { background: '#22c55e' }
+                                     : score.rag === 'amber'   ? { background: '#fbbf24' }
+                                     : score.rag === 'red'     ? { background: '#ef4444' }
+                                     : { background: '#BFCAAD', opacity: 0.5 }
+                      const badgeStyle = score.rag === 'green'
+                        ? { color: '#15803d', background: '#f0fdf4', border: '1px solid #bbf7d0' }
+                        : score.rag === 'amber'
+                        ? { color: '#92400e', background: '#fffbeb', border: '1px solid #fde68a' }
+                        : score.rag === 'red'
+                        ? { color: '#991b1b', background: '#fef2f2', border: '1px solid #fecaca' }
+                        : { color: '#8A7E6E', background: '#f5f5f4', border: '1px solid #d6d3d1' }
+                      const badgeLabel = score.rag === 'unknown' ? 'No zone data' : score.label
+
                       return (
                         <button
                           key={zone.id}
@@ -1121,14 +1129,15 @@ export default function Scan() {
                         >
                           <div className="flex items-center justify-between gap-2">
                             <div className="flex items-center gap-2 min-w-0">
-                              <span className={`w-2.5 h-2.5 rounded-full flex-shrink-0 ${dot}`} />
+                              <span className="w-2.5 h-2.5 rounded-full flex-shrink-0" style={dotStyle} />
                               <span className="text-sm text-dark font-medium truncate">{zone.name}</span>
                             </div>
-                            {score.rag !== 'unknown' && (
-                              <span className={`text-[10px] font-semibold px-2 py-0.5 rounded-full border flex-shrink-0 ${badge}`}>
-                                {score.label}
-                              </span>
-                            )}
+                            <span
+                              className="text-[10px] font-semibold px-2 py-0.5 rounded-full flex-shrink-0"
+                              style={badgeStyle}
+                            >
+                              {badgeLabel}
+                            </span>
                           </div>
                           {score.topReason && (
                             <p className="text-xs text-subtle mt-1 pl-[18px] leading-snug">
@@ -1137,7 +1146,13 @@ export default function Scan() {
                           )}
                         </button>
                       )
-                    })
+                    }),
+                    allUnknown && (
+                      <p key="__hint" className="text-xs text-subtle text-center pt-1 pb-2 leading-relaxed">
+                        Add conditions to your zones in Garden Zones to see compatibility ratings.
+                      </p>
+                    ),
+                  ]
                   })()}
                 </div>
               )}
