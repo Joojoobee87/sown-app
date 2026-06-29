@@ -1072,11 +1072,8 @@ export default function Scan() {
               <h2 className="font-serif text-dark text-lg mb-1">
                 Choose a garden zone
               </h2>
-              <p className="text-sm text-subtle mb-1">
+              <p className="text-sm text-subtle mb-4">
                 Where will this plant live?
-              </p>
-              <p className="text-[10px] text-clay mb-3 font-mono">
-                dbg: plant={result?.plant?.common_name||'none'} zones={zones.length} cond={zones.filter(z=>z.sun_exposure||z.aspect||z.soil_type).length}
               </p>
 
               {zonesLoading ? (
@@ -1107,17 +1104,17 @@ export default function Scan() {
 
                     return [
                       ...scored.map(({ zone, score }) => {
-                      const dotStyle = score.rag === 'green'   ? { background: '#22c55e' }
-                                     : score.rag === 'amber'   ? { background: '#fbbf24' }
-                                     : score.rag === 'red'     ? { background: '#ef4444' }
-                                     : { background: '#BFCAAD', opacity: 0.5 }
+                      const dotStyle = score.rag === 'green'   ? { background: '#5a7a4a' }
+                                     : score.rag === 'amber'   ? { background: '#b07d3a' }
+                                     : score.rag === 'red'     ? { background: '#9e4a3a' }
+                                     : { background: '#BFCAAD', opacity: 0.6 }
                       const badgeStyle = score.rag === 'green'
-                        ? { color: '#15803d', background: '#f0fdf4', border: '1px solid #bbf7d0' }
+                        ? { color: '#3d5c2e', background: '#eef2e8', border: '1px solid #c5d4b5' }
                         : score.rag === 'amber'
-                        ? { color: '#92400e', background: '#fffbeb', border: '1px solid #fde68a' }
+                        ? { color: '#7a5520', background: '#f7eed8', border: '1px solid #dfc090' }
                         : score.rag === 'red'
-                        ? { color: '#991b1b', background: '#fef2f2', border: '1px solid #fecaca' }
-                        : { color: '#8A7E6E', background: '#f5f5f4', border: '1px solid #d6d3d1' }
+                        ? { color: '#7a3020', background: '#f5e8e5', border: '1px solid #d4a090' }
+                        : { color: '#8A7E6E', background: '#f5f4f2', border: '1px solid #d6d0c8' }
                       const badgeLabel = score.rag === 'unknown' ? 'No zone data' : score.label
 
                       return (
