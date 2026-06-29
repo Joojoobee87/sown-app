@@ -467,7 +467,7 @@ export default function Scan() {
   const streamRef  = useRef(null)
 
   // ── State ──────────────────────────────────────────────────────────────────
-  const [mode, setMode]           = useState('camera')   // 'camera' | 'search'
+  const [scanType, setScanType]   = useState('label')    // 'label' | 'identify'
   const [cameraReady, setCamReady] = useState(false)
   const [cameraError, setCamError] = useState(null)
   const [cameraGranted, setCameraGranted] = useState(
@@ -566,9 +566,9 @@ export default function Scan() {
 
   // ── Lifecycle ──────────────────────────────────────────────────────────────
   useEffect(() => {
-    if (mode === 'camera' && cameraGranted) startCamera()
+    if (cameraGranted) startCamera()
     return () => stopCamera()
-  }, [mode, cameraGranted, startCamera, stopCamera])
+  }, [cameraGranted, startCamera, stopCamera])
 
   // ── Capture frame & identify ───────────────────────────────────────────────
   const handleIdentify = async () => {
@@ -586,7 +586,7 @@ export default function Scan() {
     const base64 = canvas.toDataURL('image/jpeg', 0.85).split(',')[1]
 
     try {
-      const identified = await identifyPlant(base64)
+      const identified = await identifyPlant(base64, scanType)
       // Fetch photo now so it shows in the card and is ready to save
       const photoUrl = await fetchWikipediaPhoto(identified.plant.latin_name)
       if (photoUrl) identified.plant.photo_url = photoUrl
@@ -755,31 +755,30 @@ export default function Scan() {
 
       <TopBar />
 
-      {/* Mode toggle */}
+      {/* Scan type toggle */}
       <div className="flex mx-4 mt-4 mb-3 bg-dark/60 rounded-xl p-1 gap-1">
         <button
-          onClick={() => setMode('camera')}
+          onClick={() => setScanType('label')}
           className={`flex-1 py-2 rounded-lg text-sm font-medium tracking-wide
                       transition-colors flex items-center justify-center gap-2
-                      ${mode === 'camera' ? 'bg-fern text-sage' : 'text-subtle'}`}
+                      ${scanType === 'label' ? 'bg-fern text-sage' : 'text-subtle'}`}
         >
           <ScanIcon size={17} stroke="currentColor" />
-          Scan
+          Scan label
         </button>
         <button
-          onClick={() => setMode('search')}
+          onClick={() => setScanType('identify')}
           className={`flex-1 py-2 rounded-lg text-sm font-medium tracking-wide
                       transition-colors flex items-center justify-center gap-2
-                      ${mode === 'search' ? 'bg-fern text-sage' : 'text-subtle'}`}
+                      ${scanType === 'identify' ? 'bg-fern text-sage' : 'text-subtle'}`}
         >
           <SearchIcon size={16} stroke="currentColor" />
-          Search
+          Identify plant
         </button>
       </div>
 
-      {/* ── Camera mode ─────────────────────────────────────────────────── */}
-      {mode === 'camera' && (
-        <div className="flex flex-col gap-4 px-4">
+      {/* ── Camera + search ─────────────────────────────────────────────── */}
+      <div className="flex flex-col gap-4 px-4">
 
           {/* Viewfinder */}
           <div className="relative bg-dark rounded-2xl overflow-hidden"
@@ -834,7 +833,9 @@ export default function Scan() {
                               items-center justify-center gap-3">
                 <div className="w-8 h-8 border-2 border-moss/30
                                 border-t-moss rounded-full animate-spin" />
-                <p className="text-moss text-sm">Identifying plant...</p>
+                <p className="text-moss text-sm">
+                  {scanType === 'label' ? 'Reading label...' : 'Identifying plant...'}
+                </p>
               </div>
             )}
 
@@ -845,12 +846,9 @@ export default function Scan() {
                 <p className="text-sage/80 text-sm leading-relaxed">
                   {cameraError}
                 </p>
-                <button
-                  onClick={() => setMode('search')}
-                  className="text-moss text-sm underline underline-offset-2"
-                >
-                  Search by name instead
-                </button>
+                <p className="text-sage/60 text-xs">
+                  Try the search below instead
+                </p>
               </div>
             )}
 
@@ -859,14 +857,16 @@ export default function Scan() {
               <div className="absolute bottom-4 left-0 right-0
                               text-center">
                 <p className="text-sage/70 text-xs tracking-wide">
-                  Point at a plant or tag
+                  {scanType === 'label'
+                    ? 'Point at a plant label or tag'
+                    : 'Point at the plant itself'}
                 </p>
               </div>
             )}
 
           </div>
 
-          {/* Identify button */}
+          {/* Identify / Read button */}
           <button
             onClick={handleIdentify}
             disabled={!cameraReady || scanning}
@@ -875,54 +875,73 @@ export default function Scan() {
                        disabled:opacity-40 active:opacity-80
                        transition-opacity"
           >
-            {scanning ? 'Identifying...' : 'Identify plant'}
+            {scanning
+              ? (scanType === 'label' ? 'Reading label...' : 'Identifying...')
+              : (scanType === 'label' ? 'Read label' : 'Identify plant')}
           </button>
 
-          {/* Switch to search */}
-          <button
-            onClick={() => setMode('search')}
-            className="text-subtle text-sm text-center
-                       underline underline-offset-2"
-          >
-            Can't get a clear shot? Search by name
-          </button>
-
-          {/* Scanning tips */}
+          {/* Tips */}
           <div className="bg-dark/50 border border-subtle/20 rounded-xl p-4">
             <p className="text-sage/60 text-[10px] uppercase tracking-widest font-medium mb-3">
-              Getting the best results
+              {scanType === 'label' ? 'Label scanning tips' : 'Plant identification tips'}
             </p>
-            <div className="flex flex-col gap-2.5">
-              <div className="flex gap-3 items-start">
-                <span className="text-fern text-xs mt-0.5 flex-shrink-0">✓</span>
-                <p className="text-sage/70 text-xs leading-relaxed">
-                  <span className="text-sage/90 font-medium">Scan the label first.</span>{' '}
-                  If your plant has a tag or nursery label, point the camera at that — it gives the most reliable identification.
-                </p>
+            {scanType === 'label' ? (
+              <div className="flex flex-col gap-2.5">
+                <div className="flex gap-3 items-start">
+                  <span className="text-fern text-xs mt-0.5 flex-shrink-0">✓</span>
+                  <p className="text-sage/70 text-xs leading-relaxed">
+                    <span className="text-sage/90 font-medium">Fill the frame with the label.</span>{' '}
+                    Get close enough that the text is legible — garden centre tags often have small print.
+                  </p>
+                </div>
+                <div className="flex gap-3 items-start">
+                  <span className="text-fern text-xs mt-0.5 flex-shrink-0">✓</span>
+                  <p className="text-sage/70 text-xs leading-relaxed">
+                    <span className="text-sage/90 font-medium">Avoid glare.</span>{' '}
+                    Tilt the label slightly if sunlight is reflecting off the surface.
+                  </p>
+                </div>
+                <div className="flex gap-3 items-start">
+                  <span className="text-fern text-xs mt-0.5 flex-shrink-0">✓</span>
+                  <p className="text-sage/70 text-xs leading-relaxed">
+                    <span className="text-sage/90 font-medium">No label?</span>{' '}
+                    Switch to Identify plant mode and point at the plant itself.
+                  </p>
+                </div>
               </div>
-              <div className="flex gap-3 items-start">
-                <span className="text-fern text-xs mt-0.5 flex-shrink-0">✓</span>
-                <p className="text-sage/70 text-xs leading-relaxed">
-                  <span className="text-sage/90 font-medium">Scan the plant visually</span>{' '}
-                  only when there's no label — visual ID works best for distinctive plants but can be less precise.
-                </p>
+            ) : (
+              <div className="flex flex-col gap-2.5">
+                <div className="flex gap-3 items-start">
+                  <span className="text-fern text-xs mt-0.5 flex-shrink-0">✓</span>
+                  <p className="text-sage/70 text-xs leading-relaxed">
+                    <span className="text-sage/90 font-medium">Show leaves and flowers.</span>{' '}
+                    Capture the most distinctive parts of the plant — ideally both foliage and any blooms.
+                  </p>
+                </div>
+                <div className="flex gap-3 items-start">
+                  <span className="text-fern text-xs mt-0.5 flex-shrink-0">✓</span>
+                  <p className="text-sage/70 text-xs leading-relaxed">
+                    <span className="text-sage/90 font-medium">Good light matters.</span>{' '}
+                    Natural daylight gives the best colour accuracy for identification.
+                  </p>
+                </div>
+                <div className="flex gap-3 items-start">
+                  <span className="text-fern text-xs mt-0.5 flex-shrink-0">✓</span>
+                  <p className="text-sage/70 text-xs leading-relaxed">
+                    <span className="text-sage/90 font-medium">Visual ID is harder than label reading.</span>{' '}
+                    If you're not confident in the result, try searching by name below.
+                  </p>
+                </div>
               </div>
-              <div className="flex gap-3 items-start">
-                <span className="text-fern text-xs mt-0.5 flex-shrink-0">✓</span>
-                <p className="text-sage/70 text-xs leading-relaxed">
-                  <span className="text-sage/90 font-medium">Not sure about the result?</span>{' '}
-                  Use the Search tab to look up by name and confirm before saving.
-                </p>
-              </div>
-            </div>
+            )}
           </div>
 
-        </div>
-      )}
-
-      {/* ── Search mode ─────────────────────────────────────────────────── */}
-      {mode === 'search' && (
-        <div className="flex flex-col gap-3 px-4">
+          {/* ── Search by name (always visible below camera) ──────────── */}
+          <div className="border-t border-subtle/20 pt-4">
+            <p className="text-sage/50 text-[10px] uppercase tracking-widest font-medium mb-3">
+              Or search by name
+            </p>
+            <div className="flex flex-col gap-3">
 
           {/* Search input */}
           <div className="relative">
@@ -1015,10 +1034,9 @@ export default function Scan() {
           )}
 
           {/* Recent scans section */}
-          {!search && (
+          {!search && recentScans.length > 0 && (
             <>
-              <p className="text-xs text-subtle uppercase tracking-widest
-                            mt-2">
+              <p className="text-xs text-subtle uppercase tracking-widest mt-2">
                 Recent scans
               </p>
               {recentScans.map(s => (
@@ -1028,8 +1046,6 @@ export default function Scan() {
                   latinName={s.latin_name}
                   daysAgo={s.daysAgo}
                   onClick={() => {
-                    // In production: fetch full plant record from Supabase
-                    // then setResult({ plant: fullRecord, probability: 1 })
                     showToast('Tap to view full profile — fetch from Supabase here')
                   }}
                 />
@@ -1037,8 +1053,10 @@ export default function Scan() {
             </>
           )}
 
-        </div>
-      )}
+            </div>{/* end search inner flex-col */}
+          </div>{/* end search border-t section */}
+
+        </div>{/* end camera+search outer flex-col */}
 
       {/* Plant profile result sheet */}
       {result && (
@@ -1219,10 +1237,10 @@ const EDGE_HDRS = {
   'apikey':        import.meta.env.VITE_SUPABASE_ANON_KEY,
 }
 
-async function identifyPlant(base64Image) {
+async function identifyPlant(base64Image, mode = 'label') {
   const res = await fetch(EDGE_URL, {
     method: 'POST', headers: EDGE_HDRS,
-    body: JSON.stringify({ image: base64Image }),
+    body: JSON.stringify({ image: base64Image, mode }),
   })
   if (!res.ok) {
     const err = await res.json().catch(() => ({}))

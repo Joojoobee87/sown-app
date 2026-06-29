@@ -11,7 +11,7 @@
 // Usage in App.jsx:
 //   <Route path="/" element={<ProtectedRoute><Home /></ProtectedRoute>} />
 
-import { Navigate } from 'react-router-dom'
+import { Navigate, useLocation } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext'
 
 // ─── Seed S loading screen ────────────────────────────────────────────────────
@@ -47,23 +47,21 @@ function SownLoader() {
 // ─── Protected Route ──────────────────────────────────────────────────────────
 export default function ProtectedRoute({ children }) {
   const { isAuthenticated, loading, error } = useAuth()
+  const location = useLocation()
 
-  // Show loader while checking auth
-  if (loading) {
-    return <SownLoader />
-  }
+  if (loading) return <SownLoader />
 
-  // If there's an auth error, redirect to auth
   if (error) {
     console.warn('Auth error, redirecting to auth:', error)
     return <Navigate to="/auth" replace />
   }
 
-  // Not signed in — redirect to auth screen
-  if (!isAuthenticated) {
-    return <Navigate to="/auth" replace />
+  if (!isAuthenticated) return <Navigate to="/auth" replace />
+
+  // First-time users see the onboarding flow
+  if (!localStorage.getItem('sown_onboarded') && location.pathname !== '/onboarding') {
+    return <Navigate to="/onboarding" replace />
   }
 
-  // Authenticated — render the screen
   return children
 }

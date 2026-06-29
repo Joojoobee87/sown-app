@@ -152,6 +152,19 @@ export default function About() {
 
       </div>
 
+      {/* App guide link */}
+      <button
+        onClick={() => {
+          localStorage.removeItem('sown_onboarded')
+          navigate('/onboarding')
+        }}
+        className="mx-4 mt-4 w-[calc(100%-2rem)] bg-leaf border border-moss/40
+                   text-fern text-sm font-medium py-3 rounded-xl
+                   active:opacity-70 transition-opacity"
+      >
+        View app guide
+      </button>
+
       {/* Version footer */}
       <p className="text-center text-xs text-subtle/50 mt-6 tracking-wide">
         Sown Garden and Home · Version 1.0

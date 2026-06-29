@@ -43,7 +43,7 @@ Deno.serve(async (req) => {
 
   try {
     const body = await req.json()
-    const { image, name } = body
+    const { image, name, mode } = body  // mode: 'label' | 'identify'
 
     if (!image && !name) {
       return new Response(JSON.stringify({ error: 'Provide either image (base64) or name (string)' }), {
@@ -59,6 +59,26 @@ Deno.serve(async (req) => {
     let message
 
     if (image) {
+      const isLabelMode = mode !== 'identify'  // default to label mode if not specified
+
+      const imagePrompt = isLabelMode
+        ? `You are a plant expert assistant for a UK gardening app called Sown.
+
+This image shows a plant label or tag — typically from a garden centre or nursery.
+Read the text on the label carefully to identify the plant name.
+Use the label text as your primary source. Set "source" to "label".
+All advice should be appropriate for UK gardens and climate.
+
+${PLANT_JSON_SCHEMA}`
+        : `You are a plant expert assistant for a UK gardening app called Sown.
+
+This image shows a plant that the user wants to identify visually.
+Identify the plant from its physical characteristics — leaf shape, colour, flower form, growth habit.
+Do not rely on any visible labels. Set "source" to "visual".
+All advice should be appropriate for UK gardens and climate.
+
+${PLANT_JSON_SCHEMA}`
+
       // ── Vision path: identify plant from photo or label ───────────────────
       message = await client.messages.create({
         model: 'claude-haiku-4-5-20251001',
@@ -70,20 +90,7 @@ Deno.serve(async (req) => {
               type: 'image',
               source: { type: 'base64', media_type: 'image/jpeg', data: image },
             },
-            {
-              type: 'text',
-              text: `You are a plant expert assistant for a UK gardening app called Sown.
-
-Analyse this image. It may show:
-- A plant label/tag from a garden centre (read the text on the label)
-- A plant itself (identify it visually)
-- Both a plant and its label
-
-Extract the plant name from any visible label first, or identify the plant visually if no label is present.
-All advice should be appropriate for UK gardens and climate.
-
-${PLANT_JSON_SCHEMA}`,
-            },
+            { type: 'text', text: imagePrompt },
           ],
         }],
       })

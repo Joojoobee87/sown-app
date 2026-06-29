@@ -14,6 +14,7 @@ import PasswordReset from './screens/PasswordReset'
 import About from './screens/About'
 import Profile from './screens/Profile'
 import GardenZones from './screens/GardenZones'
+import Onboarding from './screens/Onboarding'
 
 function ScrollToTop() {
   const { pathname } = useLocation()
@@ -56,6 +57,9 @@ export default function App() {
             }/>
             <Route path="/zones" element={
               <ProtectedRoute><GardenZones /></ProtectedRoute>
+            }/>
+            <Route path="/onboarding" element={
+              <ProtectedRoute><Onboarding /></ProtectedRoute>
             }/>
           </Routes>
           <NavBar />
