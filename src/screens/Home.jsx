@@ -141,23 +141,24 @@ export default function Home() {
       try {
         const { data: { user: authUser } } = await supabase.auth.getUser()
         if (!authUser) return
-        const [{ count: plants }, { count: zones }, { data: plantsData }] = await Promise.all([
+
+        // Counts
+        const [{ count: plants }, { count: zones }] = await Promise.all([
           supabase.from('user_plants').select('id', { count: 'exact', head: true }).eq('user_id', authUser.id),
           supabase.from('garden_zones').select('id', { count: 'exact', head: true }).eq('user_id', authUser.id),
-          supabase.from('user_plants')
-            .select('id, location, plants(common_name, care_calendar, pruning_when, pruning_how, watering, winter_care, flowering_season)')
-            .eq('user_id', authUser.id),
         ])
         setPlantCount(plants ?? 0)
         setZoneCount(zones ?? 0)
+
+        // Plant care data — fetched separately to match Calendar's working pattern
+        const { data: plantsData } = await supabase
+          .from('user_plants')
+          .select('id, location, plants(common_name, photo_url, care_calendar, pruning_when, pruning_how, watering, winter_care, flowering_season)')
+          .eq('user_id', authUser.id)
+
         if (plantsData) {
           const now = new Date()
-          const tasks = getTasksForMonth(now.getMonth(), plantsData, true)
-          console.log('[Sown] plantsData[0]:', JSON.stringify(plantsData[0], null, 2))
-          console.log('[Sown] tasks for month', now.getMonth() + 1, ':', tasks.length, tasks)
-          setMonthTasks(tasks)
-        } else {
-          console.log('[Sown] plantsData is null')
+          setMonthTasks(getTasksForMonth(now.getMonth(), plantsData, true))
         }
       } finally {
         setLoading(false)
