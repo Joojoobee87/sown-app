@@ -106,10 +106,10 @@ export default function Home() {
   const { user } = useAuth()
   const navigate  = useNavigate()
 
-  const [plantCount, setPlantCount]     = useState(null)
-  const [zoneCount, setZoneCount]       = useState(null)
-  const [thisMonthTasks, setMonthTasks] = useState([])
-  const [loading, setLoading]           = useState(true)
+  const [plantCount, setPlantCount] = useState(null)
+  const [zoneCount, setZoneCount]   = useState(null)
+  const [userPlants, setUserPlants] = useState([])
+  const [loading, setLoading]       = useState(true)
 
   // Show soft push prompt if browser supports it and user hasn't been asked or dismissed
   const [showPushPrompt, setShowPushPrompt] = useState(() => {
@@ -135,6 +135,9 @@ export default function Home() {
   const seasonalTip = SEASONAL_TIPS[monthIndex]
   const quote = QUOTES[new Date().getDate() % QUOTES.length]  // cycles by day of month
 
+  // Compute tasks inline during render — same pattern as Calendar
+  const thisMonthTasks = getTasksForMonth(monthIndex, userPlants, true)
+
   useEffect(() => {
     const fetchCounts = async () => {
       setLoading(true)
@@ -150,16 +153,13 @@ export default function Home() {
         setPlantCount(plants ?? 0)
         setZoneCount(zones ?? 0)
 
-        // Plant care data — fetched separately to match Calendar's working pattern
+        // Plant care data — same query pattern as Calendar
         const { data: plantsData } = await supabase
           .from('user_plants')
           .select('id, location, plants(common_name, photo_url, care_calendar, pruning_when, pruning_how, watering, winter_care, flowering_season)')
           .eq('user_id', authUser.id)
 
-        if (plantsData) {
-          const now = new Date()
-          setMonthTasks(getTasksForMonth(now.getMonth(), plantsData, true))
-        }
+        setUserPlants(plantsData || [])
       } finally {
         setLoading(false)
       }
