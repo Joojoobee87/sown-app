@@ -29,6 +29,10 @@ export const LABELS = {
     dogs: 'dogs', cats: 'cats', rabbits: 'rabbits', rodents: 'rodents',
     tortoises: 'tortoises', caged_birds: 'caged birds', poultry: 'poultry',
   },
+  zone_type: {
+    border: 'Border', bed: 'Bed', pots: 'Pots', greenhouse: 'Greenhouse',
+    indoors: 'Indoors', lawn: 'Lawn', other: 'Other',
+  },
   aspect: { N: 'North', NE: 'North-east', E: 'East', SE: 'South-east', S: 'South', SW: 'South-west', W: 'West', NW: 'North-west' },
 }
 

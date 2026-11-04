@@ -18,10 +18,10 @@ import { useState, useRef, useEffect, useCallback } from 'react'
 import { supabase } from '../lib/supabase'
 import TopBar from '../components/TopBar'
 import SownIcon from '../components/SownIcon'
+import { label, labelList, botanicalName, displayName, verificationLabel } from '../lib/catalogue'
 import {
-  label, labelList, formatMonths, formatRange, botanicalName, displayName,
-  verificationLabel, safetyWording, SAFETY_DISCLAIMER,
-} from '../lib/catalogue'
+  FactsGrid, profileFacts, VerificationBadge, CareSections,
+} from '../components/PlantCareDetails'
 
 // ─── Scan icon — corner-bracket viewfinder with a small leaf centre ──────────
 function ScanIcon({ size = 20, stroke = 'currentColor' }) {
@@ -174,42 +174,13 @@ function scoreZoneForPlant(plant, zone) {
 //   profile: a plant_profiles_resolved row (variety fields filled from species)
 const MATCH_LABEL = { high: 'good match', medium: 'likely match', low: 'possible match' }
 
-function CardSection({ title, children, accent }) {
-  return (
-    <div className={`bg-white border border-moss/40 rounded-xl px-4 py-3
-                     ${accent ? 'border-l-2 border-l-fern' : ''}`}>
-      <p className="text-xs font-medium text-fern mb-1 tracking-wide uppercase">{title}</p>
-      {children}
-    </div>
-  )
-}
-
 function PlantProfileCard({ result, onSave, onDismiss, saving }) {
   const { profile, careTasks = [], identification, status } = result
   const isWishlist = status === 'want_to_grow'
-  const verified = profile.status === 'verified'
-  const safety = safetyWording(profile)
 
   const matchLabel = !identification ? null
     : identification.source === 'label' ? 'label read'
     : MATCH_LABEL[identification.confidence] || null
-
-  const facts = [
-    { label: 'Sun',       value: labelList('sun', profile.sun) },
-    { label: 'Soil',      value: labelList('soil_type', profile.soil_type) || label('soil_moisture', profile.soil_moisture) },
-    { label: 'Aspect',    value: profile.aspect?.length ? profile.aspect.join(', ') : null },
-    { label: 'Height',    value: formatRange(profile.height_cm_min, profile.height_cm_max) },
-    { label: 'Flowers',   value: formatMonths(profile.flowering_months) },
-    { label: 'Hardiness', value: profile.rhs_hardiness ? `RHS ${profile.rhs_hardiness}` : null },
-  ].filter(f => f.value)
-
-  const careGuide = [
-    ['Planting', profile.care_planting],
-    ['Ongoing care', profile.care_ongoing],
-    ['Through the year', profile.care_through_year],
-  ].filter(([, text]) => text)
-
-  const jobs = [...careTasks].sort((a, b) => Math.min(...a.months) - Math.min(...b.months))
 
   // Swipe-down-to-close on handle only
   const touchStartY = useRef(null)
@@ -273,126 +244,15 @@ function PlantProfileCard({ result, onSave, onDismiss, saving }) {
 
         <div className="px-4 pb-24 flex flex-col gap-3">
 
-          {/* Verified or not */}
-          <div className="flex items-start gap-2">
-            <span
-              data-testid="verification-badge"
-              className={`text-[11px] font-medium px-2.5 py-1 rounded-full flex-shrink-0
-                          ${verified ? 'bg-fern text-sage' : 'bg-white text-clay border border-clay/40'}`}
-            >
-              {verificationLabel(profile)}
-            </span>
-            {!verified && (
-              <p className="text-xs text-subtle leading-snug pt-0.5">
-                Drafted with AI and not yet checked by Sown. Use it as a starting point.
-              </p>
-            )}
-          </div>
+          <VerificationBadge profile={profile} />
 
           {profile.summary && (
             <p className="text-sm text-muted leading-relaxed">{profile.summary}</p>
           )}
 
-          {/* Key facts grid */}
-          {facts.length > 0 && (
-            <div className="grid grid-cols-2 gap-2">
-              {facts.map(({ label: name, value }) => (
-                <div key={name} className="bg-leaf rounded-lg px-3 py-2">
-                  <p className="text-[10px] text-subtle uppercase tracking-widest mb-0.5">
-                    {name}
-                  </p>
-                  <p className="text-sm text-dark font-medium">{value}</p>
-                </div>
-              ))}
-            </div>
-          )}
+          <FactsGrid facts={profileFacts(profile)} />
 
-          {/* Watering: the care label, not a reminder */}
-          {(profile.water_need || profile.water_notes) && (
-            <CardSection title="Watering">
-              {profile.water_need && (
-                <p className="text-sm text-dark font-medium">
-                  Water need: {label('water_need', profile.water_need)}
-                </p>
-              )}
-              {profile.water_notes && (
-                <p className="text-sm text-muted leading-relaxed mt-0.5">{profile.water_notes}</p>
-              )}
-            </CardSection>
-          )}
-
-          {/* Care guide */}
-          {careGuide.map(([title, text]) => (
-            <CardSection key={title} title={title}>
-              <p className="text-sm text-muted leading-relaxed">{text}</p>
-            </CardSection>
-          ))}
-
-          {/* Jobs through the year */}
-          {jobs.length > 0 && (
-            <CardSection title="Jobs through the year" accent>
-              <ul className="flex flex-col gap-2 mt-1">
-                {jobs.map(t => (
-                  <li key={t.id} className="text-sm leading-relaxed">
-                    <span className="font-medium text-dark">{label('task_type', t.task_type)}</span>
-                    <span className="text-subtle"> · {formatMonths(t.months)}</span>
-                    {t.repeat === 'ongoing' && (
-                      <span className="text-subtle text-xs"> · reminder</span>
-                    )}
-                    {t.task_trigger === 'after_last_frost' && (
-                      <span className="text-subtle text-xs"> · after the last frost</span>
-                    )}
-                    <p className="text-muted">{t.instructions}</p>
-                  </li>
-                ))}
-              </ul>
-            </CardSection>
-          )}
-
-          {/* Common problems */}
-          {profile.common_problems?.length > 0 && (
-            <CardSection title="Common problems">
-              <ul className="flex flex-col gap-1.5 mt-1">
-                {profile.common_problems.map((p, i) => (
-                  <li key={i} className="text-sm leading-relaxed">
-                    <span className="font-medium text-dark">{p.problem}: </span>
-                    <span className="text-muted">{p.what_to_do}</span>
-                  </li>
-                ))}
-              </ul>
-            </CardSection>
-          )}
-
-          {/* Beginner tips */}
-          {profile.beginner_tips?.length > 0 && (
-            <CardSection title="Tips">
-              <ul className="list-disc pl-4 flex flex-col gap-1 mt-1">
-                {profile.beginner_tips.map((tip, i) => (
-                  <li key={i} className="text-sm text-muted leading-relaxed">{tip}</li>
-                ))}
-              </ul>
-            </CardSection>
-          )}
-
-          {profile.good_for_pollinators === 'yes' && (
-            <p className="text-sm text-fern font-medium px-1">Good for pollinators</p>
-          )}
-
-          {/* Safety: HTA list only, never a "safe" badge */}
-          <div
-            data-testid="safety"
-            className={`rounded-xl px-4 py-3 border
-                        ${safety.tone === 'harmful' ? 'bg-clay/10 border-clay/40' : 'bg-white border-moss/40'}`}
-          >
-            <p className={`text-xs font-medium mb-1 tracking-wide uppercase
-                           ${safety.tone === 'harmful' ? 'text-clay' : 'text-fern'}`}>
-              Safety
-            </p>
-            {safety.lines.map((line, i) => (
-              <p key={i} className="text-sm text-muted leading-relaxed">{line}</p>
-            ))}
-            <p className="text-[11px] text-subtle leading-relaxed mt-2">{SAFETY_DISCLAIMER}</p>
-          </div>
+          <CareSections profile={profile} careTasks={careTasks} />
 
           {/* Context label for wishlist results */}
           {isWishlist && (

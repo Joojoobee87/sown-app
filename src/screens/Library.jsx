@@ -1,12 +1,19 @@
 // src/screens/Library.jsx
 // Sown App — My Garden Library screen
-// Paste this file into src/screens/Library.jsx
+//
+// Lists the user's plants (garden_plants) with their zone (zones) and
+// catalogue profile (plant_profiles_resolved). The detail sheet shows the
+// profile's care and safety and lets the user change zone or status.
 
 import { useState, useEffect, useRef } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { supabase } from '../lib/supabase'
 import TopBar from '../components/TopBar'
 import SownIcon from '../components/SownIcon'
+import { displayName, botanicalName } from '../lib/catalogue'
+import {
+  CardSection, FactsGrid, profileFacts, VerificationBadge, CareSections,
+} from '../components/PlantCareDetails'
 
 // ─── Botanical illustration placeholder ──────────────────────────────────────
 // In production this would load from your Supabase illustrations bucket.
@@ -48,9 +55,11 @@ function BotanicalThumb({ name = '', color = '#4A5940' }) {
   return variants[seed]
 }
 
+const STATUS_LABEL = { growing: 'Growing', want_to_grow: 'Wishlist', gone: 'Gone' }
+
 // ─── Status badge ─────────────────────────────────────────────────────────────
 function StatusBadge({ status }) {
-  if (status === 'want to grow') {
+  if (status === 'want_to_grow') {
     return (
       <span className="text-[10px] bg-clay/15 text-clay px-2 py-0.5
                        rounded-full tracking-wide flex-shrink-0 whitespace-nowrap">
@@ -58,19 +67,22 @@ function StatusBadge({ status }) {
       </span>
     )
   }
-  const dot = {
-    growing: 'bg-fern',
-    dormant: 'bg-clay',
-    lost:    'bg-subtle/40',
+  if (status === 'gone') {
+    return (
+      <span className="text-[10px] bg-subtle/15 text-subtle px-2 py-0.5
+                       rounded-full tracking-wide flex-shrink-0 whitespace-nowrap">
+        Gone
+      </span>
+    )
   }
-  return (
-    <span className={`inline-block w-2 h-2 rounded-full flex-shrink-0 mt-1
-      ${dot[status] || 'bg-moss'}`} />
-  )
+  return <span className="inline-block w-2 h-2 rounded-full flex-shrink-0 mt-1 bg-fern" />
 }
 
 // ─── Plant Card ───────────────────────────────────────────────────────────────
+// plant: a garden_plants row with .profile (resolved catalogue row) and .zone
 function PlantCard({ plant, onClick }) {
+  const name = plant.nickname || displayName(plant.profile) || 'Unknown plant'
+  const botanical = botanicalName(plant.profile)
   return (
     <button
       onClick={() => onClick(plant)}
@@ -78,55 +90,34 @@ function PlantCard({ plant, onClick }) {
                  p-3 flex gap-3 items-start text-left
                  active:bg-leaf transition-colors"
     >
-      {/* Photo or botanical thumbnail */}
       <div className="w-12 h-12 bg-leaf rounded-lg flex-shrink-0
                       flex items-center justify-center overflow-hidden">
-        {plant.photo_url
-          ? <img
-              src={plant.photo_url}
-              alt={plant.common_name}
-              className="w-full h-full object-cover"
-              onError={e => { e.currentTarget.style.display = 'none'; e.currentTarget.nextSibling.style.display = 'flex' }}
-            />
-          : null}
-        <div className={`w-full h-full items-center justify-center ${plant.photo_url ? 'hidden' : 'flex'}`}>
-          <BotanicalThumb name={plant.common_name} />
-        </div>
+        <BotanicalThumb name={name} />
       </div>
 
-      {/* Plant info */}
       <div className="flex-1 min-w-0">
-        <p className="font-serif text-dark text-sm leading-tight truncate">
-          {plant.common_name}
-        </p>
-        {plant.latin_name && (
-          <p className="text-xs text-subtle italic truncate mt-0.5">
-            {plant.latin_name}
-          </p>
+        <p className="font-serif text-dark text-sm leading-tight truncate">{name}</p>
+        {botanical && botanical !== name && (
+          <p className="text-xs text-subtle italic truncate mt-0.5">{botanical}</p>
         )}
         <div className="flex items-center gap-2 mt-1.5">
-          {plant.location && (
+          {plant.zone && (
             <span className="text-[10px] bg-leaf text-fern px-2 py-0.5
                              rounded-full tracking-wide">
-              {plant.location}
+              {plant.zone.name}
             </span>
           )}
-          {plant.date_added && (
-            <span className="text-[10px] text-subtle">
-              {formatDate(plant.date_added)}
-            </span>
-          )}
+          <span className="text-[10px] text-subtle">{formatDate(plant.created_at)}</span>
         </div>
       </div>
 
-      {/* Status badge */}
       <StatusBadge status={plant.status} />
     </button>
   )
 }
 
 // ─── Empty state ──────────────────────────────────────────────────────────────
-function EmptyState({ filter, onScan }) {
+function EmptyState({ filterLabel, isAll, onScan }) {
   return (
     <div className="flex flex-col items-center justify-center
                     py-16 px-6 text-center gap-4">
@@ -136,15 +127,15 @@ function EmptyState({ filter, onScan }) {
       </div>
       <div>
         <p className="font-serif text-dark text-lg mb-1">
-          {filter === 'All' ? 'Your library is empty' : `No plants in ${filter}`}
+          {isAll ? 'Your library is empty' : `No plants in ${filterLabel}`}
         </p>
         <p className="text-sm text-muted leading-relaxed">
-          {filter === 'All'
+          {isAll
             ? 'Scan your first plant to start building your garden library.'
-            : 'Try a different location filter, or scan a new plant.'}
+            : 'Try a different filter, or scan a new plant.'}
         </p>
       </div>
-      {filter === 'All' && (
+      {isAll && (
         <button
           onClick={onScan}
           className="bg-fern text-sage text-sm font-medium
@@ -158,13 +149,53 @@ function EmptyState({ filter, onScan }) {
   )
 }
 
+// ─── Small pill picker used in the detail sheet ──────────────────────────────
+function Pills({ options, value, onPick, disabled }) {
+  return (
+    <div className="flex flex-wrap gap-2 mt-2">
+      {options.map(o => (
+        <button
+          key={o.value ?? 'none'}
+          disabled={disabled}
+          onClick={() => onPick(o.value)}
+          className={`text-xs px-3 py-1.5 rounded-full border font-medium
+                      transition-colors disabled:opacity-50
+                      ${value === o.value
+                        ? 'bg-fern text-sage border-fern'
+                        : 'bg-white border-moss/40 text-dark'}`}
+        >
+          {o.label}
+        </button>
+      ))}
+    </div>
+  )
+}
+
 // ─── Plant detail sheet ───────────────────────────────────────────────────────
 // Slides up from bottom when a plant card is tapped.
-function PlantDetailSheet({ plant: initialPlant, onClose, onUpdate }) {
-  const [plant, setPlant]         = useState(initialPlant)
-  const [editingZone, setEditingZone] = useState(false)
-  const [zones, setZones]         = useState([])
-  const [savingZone, setSavingZone]   = useState(false)
+function PlantDetailSheet({ plant: initialPlant, zones, onClose, onUpdate }) {
+  const [plant, setPlant]             = useState(initialPlant)
+  const [editing, setEditing]         = useState(null)   // 'zone' | 'status' | null
+  const [saving, setSaving]           = useState(false)
+  const [careTasks, setCareTasks]     = useState([])
+  const [notes, setNotes]             = useState([])
+  const profile = plant.profile
+  const name = plant.nickname || displayName(profile) || 'Unknown plant'
+
+  // Care tasks and the user's notes for this plant
+  useEffect(() => {
+    let live = true
+    Promise.all([
+      supabase.from('plant_care_tasks_resolved').select('*').eq('for_plant_id', plant.plant_id),
+      supabase.from('garden_plant_notes').select('id, noted_on, body')
+        .eq('garden_plant_id', plant.id).order('noted_on', { ascending: false }),
+    ]).then(([t, n]) => {
+      if (!live) return
+      setCareTasks(t.data || [])
+      setNotes(n.data || [])
+    })
+    return () => { live = false }
+  }, [plant.id, plant.plant_id])
 
   // Swipe-down-to-close — handle bar only, so it doesn't fight page scroll
   const touchStartY = useRef(null)
@@ -179,14 +210,34 @@ function PlantDetailSheet({ plant: initialPlant, onClose, onUpdate }) {
     setDragY(0)
   }
 
-  // Delete from library (user_plants only — shared plants row is kept)
+  // Change the user's own record (zone or status)
+  const saveChange = async (changes) => {
+    setSaving(true)
+    try {
+      const { error } = await supabase.from('garden_plants').update(changes).eq('id', plant.id)
+      if (error) throw error
+      setPlant(prev => ({
+        ...prev,
+        ...changes,
+        ...('zone_id' in changes ? { zone: zones.find(z => z.id === changes.zone_id) || null } : {}),
+      }))
+      setEditing(null)
+      onUpdate()
+    } catch (err) {
+      console.error('[Sown] update failed:', err)
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  // Remove from the user's garden (the catalogue profile is kept)
   const [confirmDelete, setConfirmDelete] = useState(false)
   const [deleting, setDeleting] = useState(false)
   const handleDelete = async () => {
     if (!confirmDelete) { setConfirmDelete(true); return }
     setDeleting(true)
     try {
-      await supabase.from('user_plants').delete().eq('id', plant.id)
+      await supabase.from('garden_plants').delete().eq('id', plant.id)
       onUpdate()
       onClose()
     } finally {
@@ -194,31 +245,11 @@ function PlantDetailSheet({ plant: initialPlant, onClose, onUpdate }) {
     }
   }
 
-  const openZoneEdit = async () => {
-    const { data: { user } } = await supabase.auth.getUser()
-    const { data } = await supabase
-      .from('garden_zones')
-      .select('id, name')
-      .eq('user_id', user.id)
-      .order('created_at', { ascending: true })
-    setZones(data || [])
-    setEditingZone(true)
-  }
-
-  const handleZoneSelect = async (zoneName) => {
-    setSavingZone(true)
-    try {
-      await supabase
-        .from('user_plants')
-        .update({ location: zoneName })
-        .eq('id', plant.id)
-      setPlant(prev => ({ ...prev, location: zoneName }))
-      setEditingZone(false)
-      onUpdate()
-    } finally {
-      setSavingZone(false)
-    }
-  }
+  const planted = plant.planted_year
+    ? (plant.planted_month
+        ? new Date(plant.planted_year, plant.planted_month - 1).toLocaleDateString('en-GB', { month: 'short', year: 'numeric' })
+        : String(plant.planted_year))
+    : null
 
   return (
     <>
@@ -251,214 +282,104 @@ function PlantDetailSheet({ plant: initialPlant, onClose, onUpdate }) {
 
         {/* Header */}
         <div className="mx-3 mb-4 rounded-xl overflow-hidden">
-          {plant.photo_url ? (
-            <div className="relative">
-              <img
-                src={plant.photo_url}
-                alt={plant.common_name}
-                className="w-full h-36 object-cover"
-                onError={e => { e.currentTarget.parentElement.classList.add('hidden') }}
-              />
-              <div className="absolute inset-0 bg-gradient-to-t from-dark/70 to-transparent" />
-              <div className="absolute bottom-0 left-0 right-0 px-4 py-3">
-                <p className="font-serif text-sage text-base leading-tight">
-                  {plant.common_name}
-                </p>
-                {plant.latin_name && (
-                  <p className="text-xs text-sage/70 italic mt-0.5">{plant.latin_name}</p>
+          <div className="bg-fern px-5 py-4">
+            <div className="flex items-center gap-3">
+              <div className="w-12 h-12 bg-dark/30 rounded-lg flex items-center
+                              justify-center flex-shrink-0">
+                <BotanicalThumb name={name} color="#D4DCCA" />
+              </div>
+              <div className="flex-1 min-w-0">
+                <p className="font-serif text-sage text-base leading-tight">{name}</p>
+                {profile && (
+                  <p className="text-xs text-moss italic mt-0.5">{botanicalName(profile)}</p>
                 )}
               </div>
             </div>
-          ) : (
-            <div className="bg-fern px-5 py-4">
-              <div className="flex items-center gap-3">
-                <div className="w-12 h-12 bg-dark/30 rounded-lg flex items-center
-                                justify-center flex-shrink-0">
-                  <BotanicalThumb name={plant.common_name} color="#D4DCCA" />
-                </div>
-                <div className="flex-1 min-w-0">
-                  <p className="font-serif text-sage text-base leading-tight">
-                    {plant.common_name}
-                  </p>
-                  {plant.latin_name && (
-                    <p className="text-xs text-moss italic mt-0.5">{plant.latin_name}</p>
-                  )}
-                </div>
-              </div>
-            </div>
-          )}
+          </div>
         </div>
 
-        {/* Details */}
         <div className="px-4 pb-24 flex flex-col gap-3">
 
-          {/* Location row — editable */}
+          {/* Zone — editable */}
           <div className="bg-leaf rounded-xl px-4 py-3">
             <div className="flex items-center justify-between mb-0.5">
               <p className="text-[10px] text-subtle uppercase tracking-widest">Zone</p>
-              {!editingZone && (
-                <button
-                  onClick={openZoneEdit}
-                  className="text-[10px] text-fern font-medium underline underline-offset-2
-                             active:opacity-60 transition-opacity"
-                >
-                  Edit
-                </button>
-              )}
+              <button
+                onClick={() => setEditing(editing === 'zone' ? null : 'zone')}
+                className="text-[10px] text-fern font-medium underline underline-offset-2
+                           active:opacity-60 transition-opacity"
+              >
+                {editing === 'zone' ? 'Cancel' : 'Edit'}
+              </button>
             </div>
-
-            {editingZone ? (
-              <div className="mt-2 flex flex-col gap-2">
-                <div className="flex flex-wrap gap-2">
-                  {zones.map(z => (
-                    <button
-                      key={z.id}
-                      disabled={savingZone}
-                      onClick={() => handleZoneSelect(z.name)}
-                      className={`text-xs px-3 py-1.5 rounded-full border font-medium
-                                  transition-colors disabled:opacity-50
-                                  ${plant.location === z.name
-                                    ? 'bg-fern text-sage border-fern'
-                                    : 'bg-white border-moss/40 text-dark'}`}
-                    >
-                      {z.name}
-                    </button>
-                  ))}
-                  <button
-                    disabled={savingZone}
-                    onClick={() => handleZoneSelect(null)}
-                    className={`text-xs px-3 py-1.5 rounded-full border font-medium
-                                transition-colors disabled:opacity-50
-                                ${!plant.location
-                                  ? 'bg-fern text-sage border-fern'
-                                  : 'bg-white border-moss/40 text-subtle'}`}
-                  >
-                    No zone
-                  </button>
-                </div>
-                <button
-                  onClick={() => setEditingZone(false)}
-                  className="text-xs text-subtle underline underline-offset-2 mt-1
-                             active:opacity-60 transition-opacity self-start"
-                >
-                  Cancel
-                </button>
-              </div>
+            {editing === 'zone' ? (
+              <Pills
+                options={[...zones.map(z => ({ value: z.id, label: z.name })), { value: null, label: 'No zone' }]}
+                value={plant.zone_id ?? null}
+                disabled={saving}
+                onPick={zoneId => saveChange({ zone_id: zoneId })}
+              />
             ) : (
               <p className="text-sm text-dark font-medium">
-                {plant.location || <span className="text-subtle italic font-normal">No zone</span>}
+                {plant.zone?.name || <span className="text-subtle italic font-normal">No zone</span>}
               </p>
             )}
           </div>
 
-          {/* Key facts grid */}
-          {(() => {
-            const facts = [
-              { label: 'Status',  value: plant.status },
-              { label: 'Added',   value: plant.date_added ? formatDate(plant.date_added) : null },
-              { label: 'Sun',     value: plant.sun_requirements },
-              { label: 'Soil',    value: plant.soil_type },
-              { label: 'Aspect',  value: plant.aspect },
-              { label: 'Height',  value: plant.height },
-              { label: 'Season',  value: plant.flowering_season },
-              { label: 'Frost',   value: plant.frost_hardiness },
-            ].filter(f => f.value)
-            return facts.length > 0 ? (
-              <div className="grid grid-cols-2 gap-2">
-                {facts.map(({ label, value }) => (
-                  <div key={label} className="bg-leaf rounded-lg px-3 py-2 min-w-0 overflow-hidden">
-                    <p className="text-[10px] text-subtle uppercase tracking-widest mb-0.5">
-                      {label}
-                    </p>
-                    <p className="text-sm text-dark font-medium capitalize break-words">{value}</p>
-                  </div>
+          {/* Status — editable */}
+          <div className="bg-leaf rounded-xl px-4 py-3">
+            <div className="flex items-center justify-between mb-0.5">
+              <p className="text-[10px] text-subtle uppercase tracking-widest">Status</p>
+              <button
+                onClick={() => setEditing(editing === 'status' ? null : 'status')}
+                className="text-[10px] text-fern font-medium underline underline-offset-2
+                           active:opacity-60 transition-opacity"
+              >
+                {editing === 'status' ? 'Cancel' : 'Edit'}
+              </button>
+            </div>
+            {editing === 'status' ? (
+              <Pills
+                options={Object.entries(STATUS_LABEL).map(([value, l]) => ({ value, label: l }))}
+                value={plant.status}
+                disabled={saving}
+                onPick={status => saveChange({ status })}
+              />
+            ) : (
+              <p className="text-sm text-dark font-medium">{STATUS_LABEL[plant.status]}</p>
+            )}
+          </div>
+
+          <FactsGrid facts={[
+            { label: 'Added', value: formatDate(plant.created_at) },
+            { label: 'Planted', value: planted },
+            ...(profile ? profileFacts(profile) : []),
+          ]} />
+
+          {profile && (
+            <>
+              <VerificationBadge profile={profile} />
+              {profile.summary && (
+                <p className="text-sm text-muted leading-relaxed">{profile.summary}</p>
+              )}
+              <CareSections profile={profile} careTasks={careTasks} />
+            </>
+          )}
+
+          {/* The user's dated notes */}
+          {notes.length > 0 && (
+            <CardSection title="Your notes">
+              <ul className="flex flex-col gap-2 mt-1">
+                {notes.map(n => (
+                  <li key={n.id} className="text-sm leading-relaxed">
+                    <span className="text-[10px] text-subtle uppercase tracking-widest">
+                      {formatDate(n.noted_on)}
+                    </span>
+                    <p className="text-muted italic">{n.body}</p>
+                  </li>
                 ))}
-              </div>
-            ) : null
-          })()}
-
-          {/* Watering */}
-          {plant.watering && (
-            <div className="bg-white border border-moss/40 rounded-xl px-4 py-3">
-              <p className="text-xs font-medium text-fern mb-1 tracking-wide uppercase">
-                Watering
-              </p>
-              <p className="text-sm text-muted leading-relaxed">{plant.watering}</p>
-            </div>
-          )}
-
-          {/* Pruning */}
-          {(plant.pruning_when || plant.pruning_how) && (
-            <div className="bg-white border border-moss/40 rounded-xl px-4 py-3">
-              <p className="text-xs font-medium text-fern mb-1 tracking-wide uppercase">
-                Pruning
-              </p>
-              {plant.pruning_when && (
-                <p className="text-sm text-muted leading-relaxed">
-                  <span className="font-medium text-dark">When: </span>
-                  {plant.pruning_when}
-                </p>
-              )}
-              {plant.pruning_how && (
-                <p className="text-sm text-muted leading-relaxed mt-0.5">
-                  <span className="font-medium text-dark">How: </span>
-                  {plant.pruning_how}
-                </p>
-              )}
-            </div>
-          )}
-
-          {/* Winter care */}
-          {plant.winter_care && (
-            <div className="bg-white border border-moss/40 rounded-xl px-4 py-3">
-              <p className="text-xs font-medium text-fern mb-1 tracking-wide uppercase">
-                Winter care
-              </p>
-              <p className="text-sm text-muted leading-relaxed">{plant.winter_care}</p>
-            </div>
-          )}
-
-          {/* Care note */}
-          {plant.care_notes && (
-            <div className="bg-white border-l-2 border-l-fern border border-moss/40
-                            rounded-xl px-4 py-3">
-              <p className="text-xs font-medium text-fern mb-1 tracking-wide uppercase">
-                Care note
-              </p>
-              <p className="text-sm text-muted leading-relaxed">{plant.care_notes}</p>
-            </div>
-          )}
-
-          {/* Wildlife value */}
-          {plant.wildlife_value && (
-            <div className="bg-white border border-moss/40 rounded-xl px-4 py-3">
-              <p className="text-xs font-medium text-subtle mb-1 tracking-wide uppercase">
-                Wildlife value
-              </p>
-              <p className="text-sm text-muted leading-relaxed">{plant.wildlife_value}</p>
-            </div>
-          )}
-
-          {/* Toxicity */}
-          {plant.toxic && (
-            <div className="bg-clay/10 border border-clay/40 rounded-xl px-4 py-3">
-              <p className="text-xs font-medium text-clay mb-1 tracking-wide">
-                ⚠ Toxicity
-              </p>
-              <p className="text-sm text-muted leading-relaxed">{plant.toxic}</p>
-            </div>
-          )}
-
-          {/* Personal notes */}
-          {plant.personal_notes && (
-            <div className="bg-white border border-moss/40 rounded-xl px-4 py-3">
-              <p className="text-xs font-medium text-subtle mb-1 tracking-wide uppercase">
-                Your notes
-              </p>
-              <p className="text-sm text-muted leading-relaxed italic">
-                {plant.personal_notes}
-              </p>
-            </div>
+              </ul>
+            </CardSection>
           )}
 
           {/* Close button */}
@@ -471,7 +392,7 @@ function PlantDetailSheet({ plant: initialPlant, onClose, onUpdate }) {
             Close
           </button>
 
-          {/* Remove from library */}
+          {/* Remove from garden */}
           <button
             onClick={handleDelete}
             disabled={deleting}
@@ -498,9 +419,10 @@ export default function Library() {
 
   // ── State ──────────────────────────────────────────────────────────────────
   const [search, setSearch]         = useState('')
-  const [activeFilter, setFilter]   = useState('All')
+  const [activeFilter, setFilter]   = useState('all')   // 'all' | 'wishlist' | 'gone' | zone id
   const [selectedPlant, setPlant]   = useState(null)
   const [plants, setPlants]         = useState([])
+  const [zones, setZones]           = useState([])
   const [loading, setLoading]       = useState(true)
 
   // ── Lock body scroll when detail sheet is open ─────────────────────────────
@@ -513,54 +435,29 @@ export default function Library() {
     return () => { document.body.style.overflow = '' }
   }, [selectedPlant])
 
-  // ── Fetch from Supabase ─────────────────────────────────────────────────────
+  // ── Fetch the user's plants, zones and their catalogue profiles ────────────
   const fetchPlants = async () => {
     setLoading(true)
     try {
-      const { data: { user } } = await supabase.auth.getUser()
-      if (!user) return
-      const { data } = await supabase
-        .from('user_plants')
-        .select(`
-          id, plant_id, location, personal_notes, date_added, status,
-          plants (
-            common_name, latin_name, photo_url,
-            sun_requirements, soil_type, aspect, height, spread,
-            flowering_season, growth_rate, frost_hardiness,
-            watering, pruning_when, pruning_how,
-            winter_care, care_notes, wildlife_value, toxic
-          )
-        `)
-        .eq('user_id', user.id)
-        .order('date_added', { ascending: false })
-      if (data) {
-        setPlants(data.map(row => ({
-          id:               row.id,
-          plant_id:         row.plant_id,
-          location:         row.location,
-          personal_notes:   row.personal_notes,
-          date_added:       row.date_added,
-          status:           row.status,
-          common_name:      row.plants?.common_name,
-          latin_name:       row.plants?.latin_name,
-          photo_url:        row.plants?.photo_url,
-          sun_requirements: row.plants?.sun_requirements,
-          soil_type:        row.plants?.soil_type,
-          aspect:           row.plants?.aspect,
-          height:           row.plants?.height,
-          spread:           row.plants?.spread,
-          flowering_season: row.plants?.flowering_season,
-          growth_rate:      row.plants?.growth_rate,
-          frost_hardiness:  row.plants?.frost_hardiness,
-          watering:         row.plants?.watering,
-          pruning_when:     row.plants?.pruning_when,
-          pruning_how:      row.plants?.pruning_how,
-          winter_care:      row.plants?.winter_care,
-          care_notes:       row.plants?.care_notes,
-          wildlife_value:   row.plants?.wildlife_value,
-          toxic:            row.plants?.toxic,
-        })))
-      }
+      const [{ data: rows }, { data: zoneRows }] = await Promise.all([
+        supabase
+          .from('garden_plants')
+          .select('id, plant_id, zone_id, status, nickname, planted_month, planted_year, created_at')
+          .order('created_at', { ascending: false }),
+        supabase.from('zones').select('id, name').order('created_at', { ascending: true }),
+      ])
+      const ids = [...new Set((rows || []).map(r => r.plant_id))]
+      const { data: profiles } = ids.length
+        ? await supabase.from('plant_profiles_resolved').select('*').in('id', ids)
+        : { data: [] }
+      const profileById = Object.fromEntries((profiles || []).map(p => [p.id, p]))
+      const zoneById = Object.fromEntries((zoneRows || []).map(z => [z.id, z]))
+      setZones(zoneRows || [])
+      setPlants((rows || []).map(r => ({
+        ...r,
+        profile: profileById[r.plant_id] || null,
+        zone: zoneById[r.zone_id] || null,
+      })))
     } finally {
       setLoading(false)
     }
@@ -570,23 +467,29 @@ export default function Library() {
     fetchPlants()
   }, [])
 
-  // ── Filters: zone locations + Wishlist pill ───────────────────────────────
-  const hasWishlist = plants.some(p => p.status === 'want to grow')
-  const locations   = [
-    'All',
-    ...(hasWishlist ? ['Wishlist'] : []),
-    ...new Set(plants.filter(p => p.status !== 'want to grow').map(p => p.location).filter(Boolean)),
+  // ── Filters: All, Wishlist, each zone in use, Gone ─────────────────────────
+  const inGarden = plants.filter(p => p.status === 'growing')
+  const zonesInUse = zones.filter(z => inGarden.some(p => p.zone_id === z.id))
+  const filters = [
+    { key: 'all', label: 'All' },
+    ...(plants.some(p => p.status === 'want_to_grow') ? [{ key: 'wishlist', label: 'Wishlist' }] : []),
+    ...zonesInUse.map(z => ({ key: z.id, label: z.name })),
+    ...(plants.some(p => p.status === 'gone') ? [{ key: 'gone', label: 'Gone' }] : []),
   ]
+  const activeLabel = filters.find(f => f.key === activeFilter)?.label || 'All'
 
   // ── Filtered list ───────────────────────────────────────────────────────────
+  const q = search.toLowerCase()
   const filtered = plants.filter(p => {
-    const matchesSearch =
-      (p.common_name || '').toLowerCase().includes(search.toLowerCase()) ||
-      (p.latin_name || '').toLowerCase().includes(search.toLowerCase())
+    const matchesSearch = !q ||
+      (p.nickname || '').toLowerCase().includes(q) ||
+      (displayName(p.profile) || '').toLowerCase().includes(q) ||
+      botanicalName(p.profile).toLowerCase().includes(q)
     const matchesFilter =
-      activeFilter === 'All'      ? true :
-      activeFilter === 'Wishlist' ? p.status === 'want to grow' :
-                                    p.location === activeFilter
+      activeFilter === 'all'      ? p.status !== 'gone' :
+      activeFilter === 'wishlist' ? p.status === 'want_to_grow' :
+      activeFilter === 'gone'     ? p.status === 'gone' :
+                                    p.status === 'growing' && p.zone_id === activeFilter
     return matchesSearch && matchesFilter
   })
 
@@ -634,22 +537,22 @@ export default function Library() {
           </div>
         </div>
 
-        {/* Location filters */}
+        {/* Filters */}
         <div className="px-4 pb-3 flex gap-2 overflow-x-auto
                         scrollbar-none [-ms-overflow-style:none]
                         [&::-webkit-scrollbar]:hidden">
-          {locations.map(loc => (
+          {filters.map(f => (
             <button
-              key={loc}
-              onClick={() => setFilter(loc)}
+              key={f.key}
+              onClick={() => setFilter(f.key)}
               className={`flex-shrink-0 text-xs px-3 py-1.5 rounded-full
                           font-medium tracking-wide transition-colors
-                          ${activeFilter === loc
+                          ${activeFilter === f.key
                             ? 'bg-fern text-sage'
                             : 'bg-white border border-moss/40 text-subtle'
                           }`}
             >
-              {loc}
+              {f.label}
             </button>
           ))}
         </div>
@@ -658,8 +561,9 @@ export default function Library() {
         {filtered.length > 0 && (
           <p className="px-4 pb-2 text-xs text-subtle tracking-wide">
             {filtered.length} {filtered.length === 1 ? 'plant' : 'plants'}
-            {activeFilter === 'Wishlist' ? ' on your wishlist' :
-             activeFilter !== 'All'      ? ` in ${activeFilter}` : ''}
+            {activeFilter === 'wishlist' ? ' on your wishlist' :
+             activeFilter === 'gone'     ? ' no longer growing' :
+             activeFilter !== 'all'      ? ` in ${activeLabel}` : ''}
           </p>
         )}
 
@@ -671,7 +575,8 @@ export default function Library() {
                               border-t-fern rounded-full animate-spin" />
             </div>
           ) : filtered.length === 0
-            ? <EmptyState filter={activeFilter} onScan={() => navigate('/scan')} />
+            ? <EmptyState filterLabel={activeLabel} isAll={activeFilter === 'all' && !q}
+                          onScan={() => navigate('/scan')} />
             : filtered.map(plant => (
                 <PlantCard
                   key={plant.id}
@@ -705,6 +610,7 @@ export default function Library() {
         <PlantDetailSheet
           key={selectedPlant.id}
           plant={selectedPlant}
+          zones={zones}
           onClose={() => setPlant(null)}
           onUpdate={fetchPlants}
         />
@@ -719,4 +625,3 @@ function formatDate(dateStr) {
   const d = new Date(dateStr)
   return d.toLocaleDateString('en-GB', { month: 'short', year: 'numeric' })
 }
-

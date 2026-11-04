@@ -1,17 +1,21 @@
 import { useState, useEffect } from 'react'
 import { supabase } from '../lib/supabase'
-import { useAuth } from '../context/AuthContext'
 import TopBar from '../components/TopBar'
+import { LABELS, label } from '../lib/catalogue'
 
 // ─── Option sets ──────────────────────────────────────────────────────────────
-const ASPECTS  = ['N', 'NE', 'E', 'SE', 'S', 'SW', 'W', 'NW']
-const SUN      = ['Full sun', 'Partial shade', 'Full shade']
-const SOILS    = ['Clay', 'Sandy', 'Loam', 'Chalk', 'Peat', 'Silty']
-const DRAINAGE = ['Well drained', 'Moist but well drained', 'Poorly drained']
-const SHELTER  = ['Exposed', 'Sheltered', 'Coastal']
+// Stored as the catalogue's codes (see src/lib/catalogue.js) so zones can be
+// matched against plant profiles.
+const options = (group, codes) => codes.map(value => ({ value, label: LABELS[group][value] }))
+const ASPECTS   = ['N', 'NE', 'E', 'SE', 'S', 'SW', 'W', 'NW'].map(a => ({ value: a, label: a }))
+const ZONE_TYPES = options('zone_type', ['border', 'bed', 'pots', 'greenhouse', 'indoors', 'lawn', 'other'])
+const SUN       = options('sun', ['full_sun', 'partial_shade', 'full_shade'])
+const SOILS     = options('soil_type', ['clay', 'sand', 'loam', 'chalk'])
+const DRAINAGE  = options('soil_moisture', ['well_drained', 'moist_but_well_drained', 'poorly_drained'])
+const SHELTER   = options('exposure', ['exposed', 'sheltered'])
 
 const BLANK_ZONE = {
-  name: '', aspect: '', sun_exposure: '', soil_type: '',
+  name: '', zone_type: '', aspect: '', sun: '', soil_type: '',
   soil_drainage: '', shelter: '', frost_pocket: false, notes: '',
 }
 
@@ -21,13 +25,13 @@ const HELP = {
     title: 'Which direction does it face?',
     body: 'Use the compass on your phone and stand in the middle of your plot. The direction you face when looking away from your house (or any wall/fence behind the bed) is your aspect.\n\nThe sun rises in the East and sets in the West — at midday it\'s due South. South and south-west facing spots get the most sun; north-facing spots get the least.',
   },
-  sun_exposure: {
+  sun: {
     title: 'How much sun does it get?',
     body: 'Observe on a clear summer\'s day:\n\n• Full sun — 6+ hours of direct sunlight\n• Partial shade — 3 to 6 hours, or dappled light under trees\n• Full shade — fewer than 3 hours of direct sun\n\nIf in doubt, partial shade is the safe middle ground.',
   },
   soil_type: {
     title: 'Not sure what soil you have?',
-    body: 'Take a handful of moist soil and squeeze it:\n\n• Clay — smooth, ribbons when rolled between palms, sticky when wet, cracks when dry\n• Sandy — gritty, falls apart, won\'t hold a shape, drains fast\n• Loam — crumbly and dark, holds shape briefly then breaks — the ideal garden soil\n• Chalk — pale and stony with white chunks, fizzes with vinegar\n• Peat — dark brown, spongy and light, smells earthy, stays wet\n• Silty — silky and smooth, holds shape but feels floury not sticky',
+    body: 'Take a handful of moist soil and squeeze it:\n\n• Clay — smooth, ribbons when rolled between palms, sticky when wet, cracks when dry\n• Sandy — gritty, falls apart, won\'t hold a shape, drains fast\n• Loam — crumbly and dark, holds shape briefly then breaks — the ideal garden soil\n• Chalk — pale and stony with white chunks, fizzes with vinegar\n\nPeaty or silty soil? Choose the closest match (usually loam) and add a note.',
   },
   soil_drainage: {
     title: 'How to check drainage',
@@ -35,7 +39,7 @@ const HELP = {
   },
   shelter: {
     title: 'How sheltered is this spot?',
-    body: '• Exposed — open to wind from most directions; no surrounding trees, fences, or buildings to break the gusts\n• Sheltered — protected by a wall, fence, hedge, or building on the windward side\n• Coastal — within a mile or so of the sea; expect salt-laden winds but often mild winters with fewer hard frosts',
+    body: '• Exposed — open to wind from most directions; no surrounding trees, fences, or buildings to break the gusts\n• Sheltered — protected by a wall, fence, hedge, or building on the windward side\n\nNear the coast? Salt-laden winds usually make it Exposed. Add "coastal" in the notes, as coastal gardens often have milder winters.',
   },
   frost_pocket: {
     title: 'What is a frost pocket?',
@@ -85,16 +89,16 @@ function PillGroup({ options, value, onChange }) {
     <div className="flex flex-wrap gap-2">
       {options.map(opt => (
         <button
-          key={opt}
+          key={opt.value}
           type="button"
-          onClick={() => onChange(value === opt ? '' : opt)}
+          onClick={() => onChange(value === opt.value ? '' : opt.value)}
           className={`text-xs px-3 py-1.5 rounded-full border font-medium
                       transition-colors
-                      ${value === opt
+                      ${value === opt.value
                         ? 'bg-fern text-sage border-fern'
                         : 'bg-white border-moss/40 text-subtle'}`}
         >
-          {opt}
+          {opt.label}
         </button>
       ))}
     </div>
@@ -113,19 +117,26 @@ function Chip({ label }) {
 }
 
 // ─── Zone card ────────────────────────────────────────────────────────────────
-function ZoneCard({ zone, onEdit, onDelete }) {
+function ZoneCard({ zone, plantCount, onEdit, onDelete }) {
   const chips = [
+    label('zone_type', zone.zone_type),
     zone.aspect       && `Faces ${zone.aspect}`,
-    zone.sun_exposure,
-    zone.soil_type    && `${zone.soil_type} soil`,
-    zone.shelter,
+    label('sun', zone.sun),
+    zone.soil_type    && `${label('soil_type', zone.soil_type)} soil`,
+    label('soil_moisture', zone.soil_drainage),
+    label('exposure', zone.shelter),
     zone.frost_pocket && 'Frost pocket',
   ].filter(Boolean)
 
   return (
     <div className="bg-white border border-moss/40 rounded-xl p-4">
       <div className="flex items-start justify-between gap-2 mb-2">
-        <p className="font-serif text-dark text-base leading-tight">{zone.name}</p>
+        <div className="min-w-0">
+          <p className="font-serif text-dark text-base leading-tight">{zone.name}</p>
+          <p className="text-xs text-subtle mt-0.5">
+            {plantCount === 0 ? 'No plants yet' : `${plantCount} ${plantCount === 1 ? 'plant' : 'plants'}`}
+          </p>
+        </div>
         <div className="flex gap-3 flex-shrink-0">
           <button
             onClick={() => onEdit(zone)}
@@ -170,8 +181,9 @@ function ZoneSheet({ zone, onSave, onClose }) {
   // Normalise null DB values to empty strings so .trim() never crashes
   const [form, setForm] = useState(zone ? {
     name:          zone.name          || '',
+    zone_type:     zone.zone_type     || '',
     aspect:        zone.aspect        || '',
-    sun_exposure:  zone.sun_exposure  || '',
+    sun:           zone.sun           || '',
     soil_type:     zone.soil_type     || '',
     soil_drainage: zone.soil_drainage || '',
     shelter:       zone.shelter       || '',
@@ -191,14 +203,13 @@ function ZoneSheet({ zone, onSave, onClose }) {
     setSaving(true)
     setError(null)
     try {
-      const { data: { user } } = await supabase.auth.getUser()
-
-      // Save null for cleared optional fields so edits properly clear values
+      // Save null for cleared optional fields so edits properly clear values.
+      // user_id is filled in by the database for new zones.
       const payload = {
-        user_id:       user.id,
         name:          form.name.trim(),
+        zone_type:     form.zone_type     || null,
         aspect:        form.aspect        || null,
-        sun_exposure:  form.sun_exposure  || null,
+        sun:           form.sun           || null,
         soil_type:     form.soil_type     || null,
         soil_drainage: form.soil_drainage || null,
         shelter:       form.shelter       || null,
@@ -206,25 +217,16 @@ function ZoneSheet({ zone, onSave, onClose }) {
         notes:         form.notes.trim()  || null,
       }
 
-      if (zone?.id) {
-        const { error } = await supabase.from('garden_zones')
-          .update(payload).eq('id', zone.id)
-        if (error) throw error
-        // Cascade rename to any plants that reference the old zone name
-        if (payload.name !== zone.name) {
-          await supabase
-            .from('user_plants')
-            .update({ location: payload.name })
-            .eq('user_id', user.id)
-            .eq('location', zone.name)
-        }
-      } else {
-        const { error } = await supabase.from('garden_zones').insert(payload)
-        if (error) throw error
-      }
+      // Plants link to the zone by id, so renaming needs nothing else
+      const { error } = zone?.id
+        ? await supabase.from('zones').update(payload).eq('id', zone.id)
+        : await supabase.from('zones').insert(payload)
+      if (error) throw error
       onSave()
     } catch (err) {
-      setError(err.message || 'Could not save zone — please try again.')
+      setError(err.code === '23505'
+        ? `You already have a zone called "${form.name.trim()}".`
+        : err.message || 'Could not save zone — please try again.')
     } finally {
       setSaving(false)
     }
@@ -270,6 +272,15 @@ function ZoneSheet({ zone, onSave, onClose }) {
           />
         </div>
 
+        {/* Zone type */}
+        <div className="flex flex-col gap-2">
+          <label className="text-[10px] text-subtle uppercase tracking-widest font-medium">
+            What kind of space is it?
+          </label>
+          <PillGroup options={ZONE_TYPES} value={form.zone_type}
+            onChange={v => set('zone_type', v)} />
+        </div>
+
         {/* Aspect */}
         <div className="flex flex-col gap-2">
           <div className="flex items-center gap-2">
@@ -289,11 +300,11 @@ function ZoneSheet({ zone, onSave, onClose }) {
             <label className="text-[10px] text-subtle uppercase tracking-widest font-medium">
               Sun exposure
             </label>
-            <HelpBtn field="sun_exposure" openField={helpOpen} onToggle={toggleHelp} />
+            <HelpBtn field="sun" openField={helpOpen} onToggle={toggleHelp} />
           </div>
-          <HelpPanel field="sun_exposure" openField={helpOpen} />
-          <PillGroup options={SUN} value={form.sun_exposure}
-            onChange={v => set('sun_exposure', v)} />
+          <HelpPanel field="sun" openField={helpOpen} />
+          <PillGroup options={SUN} value={form.sun}
+            onChange={v => set('sun', v)} />
         </div>
 
         {/* Soil type */}
@@ -468,7 +479,6 @@ function DeleteConfirm({ zone, plantCount, onConfirm, onCancel, deleting }) {
 
 // ─── Main screen ──────────────────────────────────────────────────────────────
 export default function GardenZones() {
-  const { user }          = useAuth()
   const [zones, setZones] = useState([])
   const [loading, setLoading]         = useState(true)
   const [editZone, setEditZone]       = useState(null)  // zone object | 'new'
@@ -476,15 +486,19 @@ export default function GardenZones() {
   const [deletePlantCount, setDeletePlantCount] = useState(0)
   const [deleting, setDeleting]       = useState(false)
 
+  const [plantCounts, setPlantCounts] = useState({})   // zone id → growing plants
+
   const fetchZones = async () => {
     setLoading(true)
     try {
-      const { data } = await supabase
-        .from('garden_zones')
-        .select('*')
-        .eq('user_id', user.id)
-        .order('created_at', { ascending: true })
+      const [{ data }, { data: plants }] = await Promise.all([
+        supabase.from('zones').select('*').order('created_at', { ascending: true }),
+        supabase.from('garden_plants').select('zone_id').eq('status', 'growing').not('zone_id', 'is', null),
+      ])
       setZones(data || [])
+      const counts = {}
+      for (const p of plants || []) counts[p.zone_id] = (counts[p.zone_id] || 0) + 1
+      setPlantCounts(counts)
     } finally {
       setLoading(false)
     }
@@ -497,14 +511,9 @@ export default function GardenZones() {
     fetchZones()
   }
 
-  // Fetch how many plants belong to this zone before showing the confirm dialog
-  const handleDeleteClick = async (zone) => {
-    const { count } = await supabase
-      .from('user_plants')
-      .select('id', { count: 'exact', head: true })
-      .eq('user_id', user.id)
-      .eq('location', zone.name)
-    setDeletePlantCount(count || 0)
+  // Same count as the zone card: plants growing there
+  const handleDeleteClick = (zone) => {
+    setDeletePlantCount(plantCounts[zone.id] || 0)
     setDeleteZone(zone)
   }
 
@@ -512,19 +521,14 @@ export default function GardenZones() {
     if (!deleteZone) return
     setDeleting(true)
     try {
-      // Orphan plants first — set their location to null
-      if (deletePlantCount > 0) {
-        await supabase
-          .from('user_plants')
-          .update({ location: null })
-          .eq('user_id', user.id)
-          .eq('location', deleteZone.name)
-      }
-      // Then delete the zone
-      await supabase.from('garden_zones').delete().eq('id', deleteZone.id)
+      // The database moves the zone's plants to "no zone" automatically
+      const { error } = await supabase.from('zones').delete().eq('id', deleteZone.id)
+      if (error) throw error
       setDeleteZone(null)
       setDeletePlantCount(0)
       fetchZones()
+    } catch (err) {
+      console.error('[Sown] delete zone failed:', err)
     } finally {
       setDeleting(false)
     }
@@ -594,12 +598,13 @@ export default function GardenZones() {
               <ZoneCard
                 key={zone.id}
                 zone={zone}
+                plantCount={plantCounts[zone.id] || 0}
                 onEdit={z => setEditZone(z)}
                 onDelete={handleDeleteClick}
               />
             ))}
             <p className="text-xs text-subtle text-center pt-1 pb-2 leading-relaxed px-4">
-              Zone attributes will be used to match plants to your garden in a future update.
+              When you save a plant, Sown uses these details to suggest which zone suits it best.
             </p>
           </>
         )}
