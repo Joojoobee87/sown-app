@@ -7,7 +7,9 @@ Running list of known issues and follow-ups. Newest first.
 - App moves to `https://app.sowngarden.co.uk` (free subdomain of the IONOS domain; CNAME to Vercel). `sowngarden.co.uk` stays the marketing website.
 - Vercel: add `app.sowngarden.co.uk`, redirect `sown-app.vercel.app` to it. Supabase Site URL and Redirect URLs updated to match.
 - Reinstall the PWA and re-allow notifications from the new address (push subscriptions are tied to the old origin).
-- Before launch: send Supabase auth emails from the domain (e.g. `hello@sowngarden.co.uk`) via custom SMTP, so they look trustworthy and stay out of spam.
+- Done 4 Nov: Supabase custom SMTP via `hello@sowngarden.co.uk` (smtp.ionos.co.uk:465). SPF, DKIM and DMARC all pass, but Gmail still filed the first reset email as spam (new sender).
+- Before launch: rewrite Supabase email templates (Authentication → Emails → Templates) in Sown's voice and branding; consider a dedicated sending service (Resend / Postmark) once there are real users.
+- (superseded) send Supabase auth emails from the domain (e.g. `hello@sowngarden.co.uk`) via custom SMTP, so they look trustworthy and stay out of spam.
 
 ## Login and password reset (noted 4 Nov 2026)
 
