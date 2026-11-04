@@ -4,38 +4,24 @@
 //
 // What this does:
 //   1. Opens the device camera (rear-facing by default)
-//   2. User taps "Identify" to capture a frame
-//   3. Sends image to Plant.id API for identification
-//   4. Shows the plant profile result
-//   5. User can save to their Sown library (Supabase)
-//   6. Manual name search as fallback
+//   2. "Read label" or "Identify plant" sends a frame to the identify-plant
+//      edge function, which identifies it with Claude and returns the
+//      catalogue profile (a draft if it's new to Sown)
+//   3. Search looks in the Sown catalogue; "Look up with AI" uses the same
+//      edge function by name
+//   4. Shows the profile, then saves the user's plant to garden_plants
 //
-// Before this works you need:
-//   VITE_PLANTID_KEY=your_key_here   ← add to your .env file
-//   Get a free key at: plant.id
+// The app never writes to the catalogue directly: new plants are created as
+// drafts by the edge function.
 
 import { useState, useRef, useEffect, useCallback } from 'react'
-import { useNavigate } from 'react-router-dom'
 import { supabase } from '../lib/supabase'
 import TopBar from '../components/TopBar'
 import SownIcon from '../components/SownIcon'
-
-// ─── Wikipedia photo lookup (client-side for reliable external access) ────────
-async function fetchWikipediaPhoto(latinName) {
-  if (!latinName) return null
-  const lookup = async (name) => {
-    try {
-      const slug = name.trim().replace(/ /g, '_')
-      const res = await fetch(
-        `https://en.wikipedia.org/api/rest_v1/page/summary/${encodeURIComponent(slug)}`
-      )
-      if (!res.ok) return null
-      const data = await res.json()
-      return data?.thumbnail?.source ?? null
-    } catch { return null }
-  }
-  return (await lookup(latinName)) ?? (await lookup(latinName.split(' ')[0]))
-}
+import {
+  label, labelList, formatMonths, formatRange, botanicalName, displayName,
+  verificationLabel, safetyWording, SAFETY_DISCLAIMER,
+} from '../lib/catalogue'
 
 // ─── Scan icon — corner-bracket viewfinder with a small leaf centre ──────────
 function ScanIcon({ size = 20, stroke = 'currentColor' }) {
@@ -91,11 +77,14 @@ function ScanOverlay() {
 }
 
 // ─── Zone-plant RAG compatibility scoring ────────────────────────────────────
-const SUNNY_ASPECTS   = new Set(['S','SE','SW'])
-const SHADY_ASPECTS   = new Set(['N','NE','NW'])
+// plant: a plant_profiles_resolved row.  zone: a row from the zones table.
+const TENDER = new Set(['H1a', 'H1b', 'H1c', 'H2'])   // won't survive UK frost
+const HALF_HARDY = new Set(['H3'])
 
 function scoreZoneForPlant(plant, zone) {
-  if (!zone.aspect && !zone.sun_exposure && !zone.soil_type) {
+  const zoneHasData = zone.sun || zone.aspect || zone.soil_type || zone.soil_drainage ||
+                      zone.shelter || zone.frost_pocket
+  if (!zoneHasData) {
     return { rag: 'unknown', label: 'No data', reasons: [] }
   }
 
@@ -103,94 +92,65 @@ function scoreZoneForPlant(plant, zone) {
   const warnings = []  // amber flags
   const positives = [] // things that look good
 
-  const plantSun  = (plant.sun_requirements || '').toLowerCase()
-  const zoneSun   = (zone.sun_exposure     || '').toLowerCase()
-  const plantSoil = (plant.soil_type        || '').toLowerCase()
-  const zoneSoil  = (zone.soil_type         || '').toLowerCase()
-  const zoneAspect = (zone.aspect           || '').toUpperCase()
-  const plantAspect = (plant.aspect         || '').toLowerCase()
-  const plantFrost  = (plant.frost_hardiness|| '').toLowerCase()
-  const zoneDrain  = (zone.soil_drainage    || '').toLowerCase()
+  const plantSun = plant.sun || []
+  const tender = TENDER.has(plant.rhs_hardiness)
+  const halfHardy = HALF_HARDY.has(plant.rhs_hardiness)
 
-  // ── Sun matching ──
-  if (plantSun && zoneSun) {
-    const needsFullSun  = plantSun.includes('full sun') && !plantSun.includes('partial')
-    const needsShade    = plantSun.includes('full shade')
-    const toleratesPartial = plantSun.includes('partial')
-    const zoneIsShady   = zoneSun.includes('full shade')
-    const zoneIsSunny   = zoneSun.includes('full sun') && !zoneSun.includes('partial')
-    const zoneIsPartial = zoneSun.includes('partial')
-
-    if (needsFullSun && zoneIsShady) {
-      issues.push('Needs full sun — this zone is shaded')
-    } else if (needsFullSun && zoneIsPartial) {
-      warnings.push('Prefers full sun; this zone is partially shaded')
-    } else if (needsShade && zoneIsSunny) {
-      issues.push('Needs shade — this zone gets full sun')
-    } else if (toleratesPartial && !zoneIsShady) {
-      positives.push('Sun conditions look suitable')
-    } else {
+  // ── Sun ──
+  if (plantSun.length && zone.sun) {
+    if (plantSun.includes(zone.sun)) {
       positives.push('Sun conditions match well')
-    }
-  }
-
-  // ── Aspect matching (plant aspect hint vs zone facing) ──
-  if (zoneAspect && plantAspect && plantAspect !== 'any') {
-    const zoneFacingSunny = SUNNY_ASPECTS.has(zoneAspect)
-    const zoneFacingShady = SHADY_ASPECTS.has(zoneAspect)
-    const plantNeedsSun   = plantAspect.includes('s') && !plantAspect.includes('n')
-    const plantNeedsShade = plantAspect.includes('n') && !plantAspect.includes('s')
-
-    if (plantNeedsSun && zoneFacingShady) {
-      warnings.push(`Zone faces ${zoneAspect} — plant prefers a sunnier spot`)
-    } else if (plantNeedsShade && zoneFacingSunny) {
-      warnings.push(`Zone faces ${zoneAspect} — plant may prefer a shadier aspect`)
-    }
-  }
-
-  // ── Soil matching ──
-  if (plantSoil && zoneSoil) {
-    const plantNeedsDrained = plantSoil.includes('well drained') || plantSoil.includes('sandy')
-    const plantNeedsMoist   = plantSoil.includes('moist')
-    const zoneIsClay        = zoneSoil.includes('clay')
-    const zoneIsSandy       = zoneSoil.includes('sandy')
-    const zoneIsMoist       = zoneSoil.includes('moist') || zoneIsClay
-
-    if (plantNeedsDrained && zoneIsClay) {
-      warnings.push('Plant prefers free-draining soil; clay may need improving')
-    } else if (plantNeedsMoist && zoneIsSandy) {
-      warnings.push('Plant likes moisture-retentive soil; sandy soil may dry out')
+    } else if (zone.sun === 'full_shade' && plantSun.every(s => s === 'full_sun')) {
+      issues.push('Needs full sun — this zone is shaded')
+    } else if (zone.sun === 'full_sun' && plantSun.every(s => s === 'full_shade')) {
+      issues.push('Needs shade — this zone gets full sun')
+    } else if (zone.sun === 'partial_shade' && plantSun.includes('full_sun')) {
+      warnings.push('Prefers full sun; this zone is partly shaded')
+    } else if (zone.sun === 'full_shade') {
+      warnings.push('Likes some sun; this zone is in full shade')
     } else {
+      warnings.push(`Prefers ${labelList('sun', plantSun).toLowerCase()}`)
+    }
+  }
+
+  // ── Aspect (zone faces e.g. SW; plant suits any of N/E/S/W) ──
+  if (zone.aspect && plant.aspect?.length) {
+    const facing = zone.aspect.split('')
+    if (!facing.some(d => plant.aspect.includes(d))) {
+      warnings.push(`Zone faces ${zone.aspect}; does best facing ${plant.aspect.join(' or ')}`)
+    }
+  }
+
+  // ── Soil ──
+  if (zone.soil_type && plant.soil_type?.length) {
+    if (plant.soil_type.includes(zone.soil_type)) {
       positives.push('Soil type looks compatible')
+    } else {
+      warnings.push(`Prefers ${labelList('soil_type', plant.soil_type).toLowerCase()} soil; this zone is ${label('soil_type', zone.soil_type).toLowerCase()}`)
     }
   }
 
-  // ── Drainage matching ──
-  if (zoneDrain && plantSoil) {
-    const poorlyDrained = zoneDrain.includes('poorly')
-    const plantHatesSoggy = plantSoil.includes('well drained') || plantSoil.includes('sandy')
-    if (poorlyDrained && plantHatesSoggy) {
-      issues.push('Poor drainage — this plant needs free-draining conditions')
+  // ── Drainage ──
+  if (zone.soil_drainage && plant.soil_moisture) {
+    if (zone.soil_drainage === 'poorly_drained' && plant.soil_moisture === 'well_drained') {
+      issues.push('Poor drainage — this plant needs free-draining soil')
+    } else if (zone.soil_drainage === 'well_drained' && plant.soil_moisture === 'poorly_drained') {
+      warnings.push('Likes wet soil; this zone drains freely')
     }
   }
 
-  // ── Frost / hardiness matching ──
-  if (plantFrost && zone.frost_pocket) {
-    const isTender   = plantFrost.includes('tender') || plantFrost.includes('half hardy')
-    const isHalfHardy = plantFrost.includes('half hardy')
-    if (isTender) {
-      issues.push('Tender plant — frost pocket increases risk of winter losses')
-    } else if (isHalfHardy) {
-      warnings.push('Half-hardy — frost pocket may need extra winter protection')
-    }
+  // ── Frost pocket ──
+  if (zone.frost_pocket) {
+    if (tender) issues.push('Tender plant — a frost pocket risks winter losses')
+    else if (halfHardy) warnings.push('Half-hardy — give it winter protection in this frost pocket')
   }
 
-  // ── Shelter matching ──
-  if (zone.shelter && plantFrost) {
-    const isExposed  = (zone.shelter || '').toLowerCase().includes('exposed')
-    const isTender   = plantFrost.includes('tender') || plantFrost.includes('half hardy')
-    if (isExposed && isTender) {
+  // ── Shelter ──
+  if (zone.shelter === 'exposed') {
+    if (tender || halfHardy) {
       warnings.push('Exposed site — consider shelter for this tender plant')
+    } else if (plant.exposure?.length && !plant.exposure.includes('exposed')) {
+      warnings.push('Prefers a sheltered spot; this zone is exposed')
     }
   }
 
@@ -200,28 +160,56 @@ function scoreZoneForPlant(plant, zone) {
   else if (warnings.length > 0) rag = 'amber'
   else                           rag = 'green'
 
-  const label = rag === 'green' ? 'Good match'
-              : rag === 'amber' ? 'Some concerns'
-              : 'Poor match'
+  const ragLabel = rag === 'green' ? 'Good match'
+                 : rag === 'amber' ? 'Some concerns'
+                 : 'Poor match'
 
   const topReason = issues[0] || warnings[0] || positives[0] || null
 
-  return { rag, label, topReason, issues, warnings, positives }
+  return { rag, label: ragLabel, topReason, issues, warnings, positives }
 }
 
 // ─── Plant profile card (shown after identification) ──────────────────────────
+// result: { profile, careTasks, identification, status, addedVia }
+//   profile: a plant_profiles_resolved row (variety fields filled from species)
+const MATCH_LABEL = { high: 'good match', medium: 'likely match', low: 'possible match' }
+
+function CardSection({ title, children, accent }) {
+  return (
+    <div className={`bg-white border border-moss/40 rounded-xl px-4 py-3
+                     ${accent ? 'border-l-2 border-l-fern' : ''}`}>
+      <p className="text-xs font-medium text-fern mb-1 tracking-wide uppercase">{title}</p>
+      {children}
+    </div>
+  )
+}
+
 function PlantProfileCard({ result, onSave, onDismiss, saving }) {
-  const { plant, probability, addedAs } = result
-  const isResearch = addedAs === 'want to grow'
+  const { profile, careTasks = [], identification, status } = result
+  const isWishlist = status === 'want_to_grow'
+  const verified = profile.status === 'verified'
+  const safety = safetyWording(profile)
+
+  const matchLabel = !identification ? null
+    : identification.source === 'label' ? 'label read'
+    : MATCH_LABEL[identification.confidence] || null
 
   const facts = [
-    { label: 'Sun',      value: plant.sun_requirements },
-    { label: 'Soil',     value: plant.soil_type },
-    { label: 'Aspect',   value: plant.aspect },
-    { label: 'Height',   value: plant.height },
-    { label: 'Season',   value: plant.flowering_season },
-    { label: 'Frost',    value: plant.frost_hardiness },
+    { label: 'Sun',       value: labelList('sun', profile.sun) },
+    { label: 'Soil',      value: labelList('soil_type', profile.soil_type) || label('soil_moisture', profile.soil_moisture) },
+    { label: 'Aspect',    value: profile.aspect?.length ? profile.aspect.join(', ') : null },
+    { label: 'Height',    value: formatRange(profile.height_cm_min, profile.height_cm_max) },
+    { label: 'Flowers',   value: formatMonths(profile.flowering_months) },
+    { label: 'Hardiness', value: profile.rhs_hardiness ? `RHS ${profile.rhs_hardiness}` : null },
   ].filter(f => f.value)
+
+  const careGuide = [
+    ['Planting', profile.care_planting],
+    ['Ongoing care', profile.care_ongoing],
+    ['Through the year', profile.care_through_year],
+  ].filter(([, text]) => text)
+
+  const jobs = [...careTasks].sort((a, b) => Math.min(...a.months) - Math.min(...b.months))
 
   // Swipe-down-to-close on handle only
   const touchStartY = useRef(null)
@@ -264,52 +252,54 @@ function PlantProfileCard({ result, onSave, onDismiss, saving }) {
           <div className="w-10 h-1 bg-moss rounded-full" />
         </div>
 
-        {/* Header */}
-        {plant.photo_url ? (
-          <div className="mx-3 mb-4 rounded-xl overflow-hidden relative">
-            <img
-              src={plant.photo_url}
-              alt={plant.common_name}
-              className="w-full h-36 object-cover"
-            />
-            <div className="absolute inset-0 bg-gradient-to-t from-dark/70 to-transparent" />
-            <div className="absolute top-2 right-2">
-              <div className="bg-dark/50 text-sage text-[10px] px-2 py-1 rounded-full">
-                {plant.source === 'label' ? 'label read' : `${Math.round(probability * 100)}% match`}
-              </div>
-            </div>
-            <div className="absolute bottom-0 left-0 right-0 px-4 py-3">
-              <p className="font-serif text-sage text-base leading-tight">{plant.common_name}</p>
-              <p className="text-xs text-sage/70 italic mt-0.5">{plant.latin_name}</p>
-            </div>
+        {/* Header — Sown leaf until catalogue photos are added */}
+        <div className="mx-3 bg-fern rounded-xl p-4 mb-3 flex items-center gap-3">
+          <div className="w-12 h-12 bg-dark/30 rounded-lg flex items-center
+                          justify-center flex-shrink-0">
+            <SownIcon size={28} fill="#D4DCCA" />
           </div>
-        ) : (
-          <div className="mx-3 bg-fern rounded-xl p-4 mb-4 flex items-center gap-3">
-            <div className="w-12 h-12 bg-dark/30 rounded-lg flex items-center
-                            justify-center flex-shrink-0">
-              <SownIcon size={28} fill="#D4DCCA" />
-            </div>
-            <div className="flex-1 min-w-0">
-              <p className="font-serif text-sage text-base leading-tight">
-                {plant.common_name}
-              </p>
-              <p className="text-xs text-moss italic mt-0.5">{plant.latin_name}</p>
-            </div>
+          <div className="flex-1 min-w-0">
+            <p className="font-serif text-sage text-base leading-tight">
+              {displayName(profile)}
+            </p>
+            <p className="text-xs text-moss italic mt-0.5">{botanicalName(profile)}</p>
+          </div>
+          {matchLabel && (
             <div className="bg-dark/20 text-sage text-[10px] px-2 py-1 rounded-full flex-shrink-0">
-              {plant.source === 'label' ? 'label read' : `${Math.round(probability * 100)}% match`}
+              {matchLabel}
             </div>
-          </div>
-        )}
+          )}
+        </div>
 
         <div className="px-4 pb-24 flex flex-col gap-3">
+
+          {/* Verified or not */}
+          <div className="flex items-start gap-2">
+            <span
+              data-testid="verification-badge"
+              className={`text-[11px] font-medium px-2.5 py-1 rounded-full flex-shrink-0
+                          ${verified ? 'bg-fern text-sage' : 'bg-white text-clay border border-clay/40'}`}
+            >
+              {verificationLabel(profile)}
+            </span>
+            {!verified && (
+              <p className="text-xs text-subtle leading-snug pt-0.5">
+                Drafted with AI and not yet checked by Sown. Use it as a starting point.
+              </p>
+            )}
+          </div>
+
+          {profile.summary && (
+            <p className="text-sm text-muted leading-relaxed">{profile.summary}</p>
+          )}
 
           {/* Key facts grid */}
           {facts.length > 0 && (
             <div className="grid grid-cols-2 gap-2">
-              {facts.map(({ label, value }) => (
-                <div key={label} className="bg-leaf rounded-lg px-3 py-2">
+              {facts.map(({ label: name, value }) => (
+                <div key={name} className="bg-leaf rounded-lg px-3 py-2">
                   <p className="text-[10px] text-subtle uppercase tracking-widest mb-0.5">
-                    {label}
+                    {name}
                   </p>
                   <p className="text-sm text-dark font-medium">{value}</p>
                 </div>
@@ -317,91 +307,95 @@ function PlantProfileCard({ result, onSave, onDismiss, saving }) {
             </div>
           )}
 
-          {/* Watering */}
-          {plant.watering && (
-            <div className="bg-white border border-moss/40 rounded-xl px-4 py-3">
-              <p className="text-xs font-medium text-fern mb-1 tracking-wide uppercase">
-                Watering
-              </p>
-              <p className="text-sm text-muted leading-relaxed">{plant.watering}</p>
-            </div>
-          )}
-
-          {/* Pruning */}
-          {(plant.pruning_when || plant.pruning_how) && (
-            <div className="bg-white border border-moss/40 rounded-xl px-4 py-3">
-              <p className="text-xs font-medium text-fern mb-1 tracking-wide uppercase">
-                Pruning
-              </p>
-              {plant.pruning_when && (
-                <p className="text-sm text-muted leading-relaxed">
-                  <span className="font-medium text-dark">When: </span>
-                  {plant.pruning_when}
+          {/* Watering: the care label, not a reminder */}
+          {(profile.water_need || profile.water_notes) && (
+            <CardSection title="Watering">
+              {profile.water_need && (
+                <p className="text-sm text-dark font-medium">
+                  Water need: {label('water_need', profile.water_need)}
                 </p>
               )}
-              {plant.pruning_how && (
-                <p className="text-sm text-muted leading-relaxed mt-0.5">
-                  <span className="font-medium text-dark">How: </span>
-                  {plant.pruning_how}
-                </p>
+              {profile.water_notes && (
+                <p className="text-sm text-muted leading-relaxed mt-0.5">{profile.water_notes}</p>
               )}
-            </div>
+            </CardSection>
           )}
 
-          {/* Winter care */}
-          {plant.winter_care && (
-            <div className="bg-white border border-moss/40 rounded-xl px-4 py-3">
-              <p className="text-xs font-medium text-fern mb-1 tracking-wide uppercase">
-                Winter care
-              </p>
-              <p className="text-sm text-muted leading-relaxed">{plant.winter_care}</p>
-            </div>
+          {/* Care guide */}
+          {careGuide.map(([title, text]) => (
+            <CardSection key={title} title={title}>
+              <p className="text-sm text-muted leading-relaxed">{text}</p>
+            </CardSection>
+          ))}
+
+          {/* Jobs through the year */}
+          {jobs.length > 0 && (
+            <CardSection title="Jobs through the year" accent>
+              <ul className="flex flex-col gap-2 mt-1">
+                {jobs.map(t => (
+                  <li key={t.id} className="text-sm leading-relaxed">
+                    <span className="font-medium text-dark">{label('task_type', t.task_type)}</span>
+                    <span className="text-subtle"> · {formatMonths(t.months)}</span>
+                    {t.repeat === 'ongoing' && (
+                      <span className="text-subtle text-xs"> · reminder</span>
+                    )}
+                    {t.task_trigger === 'after_last_frost' && (
+                      <span className="text-subtle text-xs"> · after the last frost</span>
+                    )}
+                    <p className="text-muted">{t.instructions}</p>
+                  </li>
+                ))}
+              </ul>
+            </CardSection>
           )}
 
-          {/* Care notes */}
-          {plant.care_notes && (
-            <div className="bg-white border-l-2 border-l-fern border border-moss/40
-                            rounded-xl px-4 py-3">
-              <p className="text-xs font-medium text-fern mb-1 tracking-wide uppercase">
-                Care note
-              </p>
-              <p className="text-sm text-muted leading-relaxed">{plant.care_notes}</p>
-            </div>
+          {/* Common problems */}
+          {profile.common_problems?.length > 0 && (
+            <CardSection title="Common problems">
+              <ul className="flex flex-col gap-1.5 mt-1">
+                {profile.common_problems.map((p, i) => (
+                  <li key={i} className="text-sm leading-relaxed">
+                    <span className="font-medium text-dark">{p.problem}: </span>
+                    <span className="text-muted">{p.what_to_do}</span>
+                  </li>
+                ))}
+              </ul>
+            </CardSection>
           )}
 
-          {/* Wildlife value */}
-          {plant.wildlife_value && (
-            <div className="bg-white border border-moss/40 rounded-xl px-4 py-3">
-              <p className="text-xs font-medium text-subtle mb-1 tracking-wide uppercase">
-                Wildlife value
-              </p>
-              <p className="text-sm text-muted leading-relaxed">{plant.wildlife_value}</p>
-            </div>
+          {/* Beginner tips */}
+          {profile.beginner_tips?.length > 0 && (
+            <CardSection title="Tips">
+              <ul className="list-disc pl-4 flex flex-col gap-1 mt-1">
+                {profile.beginner_tips.map((tip, i) => (
+                  <li key={i} className="text-sm text-muted leading-relaxed">{tip}</li>
+                ))}
+              </ul>
+            </CardSection>
           )}
 
-          {/* Toxicity warning */}
-          {plant.toxic && (
-            <div className="bg-clay/10 border border-clay/40 rounded-xl px-4 py-3">
-              <p className="text-xs font-medium text-clay mb-1 tracking-wide">
-                ⚠ Toxicity
-              </p>
-              <p className="text-sm text-muted leading-relaxed">{plant.toxic}</p>
-            </div>
+          {profile.good_for_pollinators === 'yes' && (
+            <p className="text-sm text-fern font-medium px-1">Good for pollinators</p>
           )}
 
-          {/* Buyer notes — only shown on name-lookup results */}
-          {isResearch && plant.notes_for_buyer && (
-            <div className="bg-white border-l-2 border-l-clay border border-clay/30
-                            rounded-xl px-4 py-3">
-              <p className="text-xs font-medium text-clay mb-1 tracking-wide uppercase">
-                Before you buy
-              </p>
-              <p className="text-sm text-muted leading-relaxed">{plant.notes_for_buyer}</p>
-            </div>
-          )}
+          {/* Safety: HTA list only, never a "safe" badge */}
+          <div
+            data-testid="safety"
+            className={`rounded-xl px-4 py-3 border
+                        ${safety.tone === 'harmful' ? 'bg-clay/10 border-clay/40' : 'bg-white border-moss/40'}`}
+          >
+            <p className={`text-xs font-medium mb-1 tracking-wide uppercase
+                           ${safety.tone === 'harmful' ? 'text-clay' : 'text-fern'}`}>
+              Safety
+            </p>
+            {safety.lines.map((line, i) => (
+              <p key={i} className="text-sm text-muted leading-relaxed">{line}</p>
+            ))}
+            <p className="text-[11px] text-subtle leading-relaxed mt-2">{SAFETY_DISCLAIMER}</p>
+          </div>
 
-          {/* Context label for research results */}
-          {isResearch && (
+          {/* Context label for wishlist results */}
+          {isWishlist && (
             <p className="text-xs text-subtle text-center leading-relaxed px-2">
               This will be saved to your wishlist. Update to "Growing" once you have it in the garden.
             </p>
@@ -425,7 +419,7 @@ function PlantProfileCard({ result, onSave, onDismiss, saving }) {
                          active:opacity-70 transition-opacity
                          disabled:opacity-50"
             >
-              {saving ? 'Saving...' : isResearch ? 'Add to wishlist' : 'Save to library'}
+              {saving ? 'Saving...' : isWishlist ? 'Add to wishlist' : 'Save to my garden'}
             </button>
           </div>
 
@@ -461,7 +455,6 @@ function RecentPill({ name, latinName, daysAgo, onClick }) {
 
 // ─── Main Scan screen ─────────────────────────────────────────────────────────
 export default function Scan() {
-  const navigate   = useNavigate()
   const videoRef   = useRef(null)
   const canvasRef  = useRef(null)
   const streamRef  = useRef(null)
@@ -477,9 +470,10 @@ export default function Scan() {
   const [search, setSearch]       = useState('')
   const [searchResults, setSearchResults] = useState([])
   const [searching, setSearching] = useState(false)
-  const [result, setResult]       = useState(null)  // { plant, probability, addedAs }
+  // { profile, careTasks, identification, status: 'growing' | 'want_to_grow', addedVia }
+  const [result, setResult]       = useState(null)
   const [saving, setSaving]       = useState(false)
-  const [saved, setSaved]         = useState(false)
+  const [savedCount, setSavedCount] = useState(0)
   const [toast, setToast]         = useState(null)
   const [lookingUp, setLookingUp] = useState(false)
 
@@ -500,30 +494,31 @@ export default function Scan() {
     return () => { document.body.style.overflow = '' }
   }, [result, showZonePicker])
 
-  // ── Recent scans from Supabase ─────────────────────────────────────────────
+  // ── Recently saved plants ──────────────────────────────────────────────────
   const [recentScans, setRecentScans] = useState([])
 
   useEffect(() => {
     const fetchRecent = async () => {
-      const { data: { user } } = await supabase.auth.getUser()
-      if (!user) return
-      const { data } = await supabase
-        .from('user_plants')
-        .select('id, created_at, plants(common_name, latin_name)')
-        .eq('user_id', user.id)
+      const { data: rows } = await supabase
+        .from('garden_plants')
+        .select('id, plant_id, created_at')
         .order('created_at', { ascending: false })
         .limit(5)
-      if (data) {
-        setRecentScans(data.map(row => ({
-          id: row.id,
-          common_name: row.plants?.common_name,
-          latin_name: row.plants?.latin_name,
-          daysAgo: Math.floor((Date.now() - new Date(row.created_at)) / 86400000),
-        })))
-      }
+      if (!rows?.length) { setRecentScans([]); return }
+      const { data: profiles } = await supabase
+        .from('plant_profiles_resolved')
+        .select('id, genus, species, cultivar, common_names')
+        .in('id', [...new Set(rows.map(r => r.plant_id))])
+      const byId = Object.fromEntries((profiles || []).map(p => [p.id, p]))
+      setRecentScans(rows.map(row => ({
+        id: row.id,
+        common_name: displayName(byId[row.plant_id]),
+        latin_name: botanicalName(byId[row.plant_id]),
+        daysAgo: Math.floor((Date.now() - new Date(row.created_at)) / 86400000),
+      })))
     }
     fetchRecent()
-  }, [saved])
+  }, [savedCount])
 
   // ── Start camera ───────────────────────────────────────────────────────────
   const startCamera = useCallback(async () => {
@@ -586,13 +581,16 @@ export default function Scan() {
     const base64 = canvas.toDataURL('image/jpeg', 0.85).split(',')[1]
 
     try {
-      const identified = await identifyPlant(base64, scanType)
-      // Fetch photo now so it shows in the card and is ready to save
-      const photoUrl = await fetchWikipediaPhoto(identified.plant.latin_name)
-      if (photoUrl) identified.plant.photo_url = photoUrl
-      setResult(identified)
+      const found = await callIdentifyPlant({ image: base64, mode: scanType })
+      setResult({
+        profile: found.profile,
+        careTasks: found.care_tasks,
+        identification: found.identification,
+        status: 'growing',
+        addedVia: scanType === 'label' ? 'label_scan' : 'photo_id',
+      })
     } catch (err) {
-      showToast('Could not identify plant — try again or search by name')
+      showToast(err.message || 'Could not identify plant — try again or search by name')
     } finally {
       setScanning(false)
     }
@@ -603,10 +601,14 @@ export default function Scan() {
     if (lookingUp) return
     setLookingUp(true)
     try {
-      const plant = await lookupPlantByName(plantName)
-      const photoUrl = await fetchWikipediaPhoto(plant.latin_name)
-      if (photoUrl) plant.photo_url = photoUrl
-      setResult({ plant, probability: 1, addedAs: 'want to grow' })
+      const found = await callIdentifyPlant({ name: plantName })
+      setResult({
+        profile: found.profile,
+        careTasks: found.care_tasks,
+        identification: found.identification,
+        status: 'want_to_grow',
+        addedVia: 'search',
+      })
     } catch (err) {
       console.error('[Sown] name lookup failed:', err)
       showToast(err.message || 'Could not look up that plant — please try again')
@@ -615,17 +617,16 @@ export default function Scan() {
     }
   }
 
-  // ── Manual search — queries Supabase plants table ─────────────────────────
+  // ── Search the Sown catalogue ──────────────────────────────────────────────
   useEffect(() => {
-    if (!search.trim()) { setSearchResults([]); return }
+    if (search.trim().length < 2) { setSearchResults([]); return }
     const timer = setTimeout(async () => {
       setSearching(true)
       try {
-        const { data } = await supabase
-          .from('plants')
-          .select('*')
-          .or(`common_name.ilike.%${search}%,latin_name.ilike.%${search}%`)
-          .limit(8)
+        const { data, error } = await supabase.rpc('search_plant_profiles', {
+          p_query: search.trim(), p_limit: 8,
+        })
+        if (error) console.error('[Sown] search failed:', error)
         setSearchResults(data || [])
       } finally {
         setSearching(false)
@@ -634,16 +635,28 @@ export default function Scan() {
     return () => clearTimeout(timer)
   }, [search])
 
+  // ── Open a catalogue search result ─────────────────────────────────────────
+  const handleOpenSearchResult = async (profile) => {
+    const { data: tasks } = await supabase
+      .from('plant_care_tasks_resolved')
+      .select('*')
+      .eq('for_plant_id', profile.id)
+    setResult({
+      profile,
+      careTasks: tasks || [],
+      identification: null,
+      status: 'growing',
+      addedVia: 'search',
+    })
+  }
+
   // ── Fetch user's garden zones (with all condition fields for RAG matching) ──
   const fetchZones = async () => {
     setZonesLoading(true)
     try {
-      const { data: { user } } = await supabase.auth.getUser()
-      if (!user) return
       const { data } = await supabase
-        .from('garden_zones')
-        .select('id, name, aspect, sun_exposure, soil_type, soil_drainage, shelter, frost_pocket')
-        .eq('user_id', user.id)
+        .from('zones')
+        .select('id, name, aspect, sun, soil_type, soil_drainage, shelter, frost_pocket')
         .order('created_at', { ascending: true })
       setZones(data || [])
     } finally {
@@ -657,63 +670,27 @@ export default function Scan() {
     setShowZonePicker(true)
   }
 
-  // ── Save to Supabase library ───────────────────────────────────────────────
-  const handleSave = async (zoneName) => {
+  // ── Save the user's plant ──────────────────────────────────────────────────
+  // zone: a row from zones, or null. The catalogue profile already exists
+  // (found by search, or created as a draft by the edge function).
+  const handleSave = async (zone) => {
     if (!result || saving) return
     setSaving(true)
     setShowZonePicker(false)
     try {
-      // 1. Upsert plant into plants table
-      const p = result.plant
-      const photoUrl = p.photo_url || null
-      const { data: plantRow, error: plantErr } = await supabase
-        .from('plants')
-        .upsert({
-          common_name:      p.common_name,
-          latin_name:       p.latin_name,
-          sun_requirements: p.sun_requirements,
-          soil_type:        p.soil_type,
-          aspect:           p.aspect,
-          height:           p.height           || null,
-          spread:           p.spread           || null,
-          flowering_season: p.flowering_season || null,
-          growth_rate:      p.growth_rate      || null,
-          frost_hardiness:  p.frost_hardiness  || null,
-          watering:         p.watering         || null,
-          pruning_when:     p.pruning_when     || null,
-          pruning_how:      p.pruning_how      || null,
-          winter_care:      p.winter_care      || null,
-          care_notes:       p.care_notes       || null,
-          wildlife_value:   p.wildlife_value   || null,
-          toxic:            p.toxic            || null,
-          notes_for_buyer:  p.notes_for_buyer  || null,
-          care_calendar:    p.care_calendar    || null,
-          photo_url:        photoUrl           || null,
-        }, { onConflict: 'latin_name' })
-        .select()
-        .single()
-
-      if (plantErr) throw plantErr
-
-      // 2. Add to user's library
-      const { data: { user } } = await supabase.auth.getUser()
-      const { error: libraryErr } = await supabase
-        .from('user_plants')
+      const { error } = await supabase
+        .from('garden_plants')
         .insert({
-          user_id:    user.id,
-          plant_id:   plantRow.id,
-          location:   zoneName || null,
-          status:     result.addedAs || 'growing',
-          date_added: new Date().toISOString().split('T')[0],
+          plant_id:  result.profile.id,
+          zone_id:   zone?.id ?? null,
+          status:    result.status,
+          added_via: result.addedVia,
         })
+      if (error) throw error
 
-      if (libraryErr) throw libraryErr
-
-      setSaved(true)
+      setSavedCount(n => n + 1)
       setResult(null)
-      showToast('Saved to your library ✓')
-      setTimeout(() => navigate('/library'), 1200)
-
+      showToast(result.status === 'want_to_grow' ? 'Added to your wishlist ✓' : 'Saved to your garden ✓')
     } catch (err) {
       console.error('[Sown] Save failed:', err)
       showToast('Could not save — please try again')
@@ -728,14 +705,19 @@ export default function Scan() {
     if (!name) return
     setAddingZone(true)
     try {
-      const { data: { user } } = await supabase.auth.getUser()
       const { data: zone, error } = await supabase
-        .from('garden_zones')
-        .insert({ user_id: user.id, name })
+        .from('zones')
+        .insert({ name })
         .select()
         .single()
-      if (error) throw error
-      await handleSave(zone.name)
+      if (error) {
+        if (error.code === '23505') {
+          showToast(`You already have a zone called "${name}"`)
+          return
+        }
+        throw error
+      }
+      await handleSave(zone)
     } catch {
       showToast('Could not create zone — please try again')
     } finally {
@@ -982,18 +964,26 @@ export default function Scan() {
           )}
 
           {/* Local DB results */}
-          {searchResults.map(plant => (
+          {searchResults.map(profile => (
             <button
-              key={plant.id}
-              onClick={() => setResult({ plant, probability: 1, addedAs: 'growing' })}
+              key={profile.id}
+              onClick={() => handleOpenSearchResult(profile)}
               className="w-full bg-dark/60 border border-subtle/30
                          rounded-xl px-4 py-3 text-left
                          active:border-moss transition-colors"
             >
-              <p className="text-sm text-sage">{plant.common_name}</p>
-              {plant.latin_name && (
+              <div className="flex items-start justify-between gap-2">
+                <p className="text-sm text-sage">{displayName(profile)}</p>
+                <span className={`text-[10px] px-2 py-0.5 rounded-full flex-shrink-0
+                                  ${profile.status === 'verified'
+                                    ? 'bg-fern text-sage'
+                                    : 'border border-subtle/40 text-subtle'}`}>
+                  {verificationLabel(profile)}
+                </span>
+              </div>
+              {profile.common_names?.length > 0 && (
                 <p className="text-xs text-subtle italic mt-0.5">
-                  {plant.latin_name}
+                  {botanicalName(profile)}
                 </p>
               )}
             </button>
@@ -1004,7 +994,7 @@ export default function Scan() {
             <div className="mt-1">
               {searchResults.length === 0 && (
                 <p className="text-subtle text-xs text-center mb-3">
-                  Not found in your plant database
+                  Not in the Sown catalogue yet
                 </p>
               )}
               <button
@@ -1062,7 +1052,7 @@ export default function Scan() {
       {result && (
         <PlantProfileCard
           result={result}
-          onSave={result.addedAs === 'want to grow'
+          onSave={result.status === 'want_to_grow'
             ? () => handleSave(null)   // wishlist — no zone needed
             : handleOpenZonePicker}
           onDismiss={() => setResult(null)}
@@ -1102,7 +1092,7 @@ export default function Scan() {
               ) : (
                 <div className="flex flex-col gap-2 max-h-64 overflow-y-auto mb-4">
                   {(() => {
-                    const plant = result?.plant
+                    const plant = result?.profile
                     const scored = zones.map(zone => ({
                       zone,
                       score: plant ? scoreZoneForPlant(plant, zone) : { rag: 'unknown', label: '', topReason: null },
@@ -1138,7 +1128,7 @@ export default function Scan() {
                       return (
                         <button
                           key={zone.id}
-                          onClick={() => handleSave(zone.name)}
+                          onClick={() => handleSave(zone)}
                           disabled={saving}
                           className="w-full bg-white border border-moss/40
                                      rounded-xl px-4 py-3 text-left
@@ -1229,38 +1219,18 @@ export default function Scan() {
   )
 }
 
-// ─── Claude via Supabase Edge Function ───────────────────────────────────────
-const EDGE_URL  = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/identify-plant`
-const EDGE_HDRS = {
-  'Content-Type':  'application/json',
-  'Authorization': `Bearer ${import.meta.env.VITE_SUPABASE_ANON_KEY}`,
-  'apikey':        import.meta.env.VITE_SUPABASE_ANON_KEY,
-}
-
-async function identifyPlant(base64Image, mode = 'label') {
-  const res = await fetch(EDGE_URL, {
-    method: 'POST', headers: EDGE_HDRS,
-    body: JSON.stringify({ image: base64Image, mode }),
-  })
-  if (!res.ok) {
-    const err = await res.json().catch(() => ({}))
-    throw new Error(err.error || 'Could not identify plant')
+// ─── Claude via the identify-plant edge function ─────────────────────────────
+// supabase.functions.invoke sends the signed-in user's token, which the
+// function needs to check the daily limit and create drafts as that user.
+// body: { image, mode: 'label' | 'identify' } or { name }
+// Returns { profile, care_tasks, identification, usage }.
+async function callIdentifyPlant(body) {
+  const { data, error } = await supabase.functions.invoke('identify-plant', { body })
+  if (error) {
+    // The function's own message (e.g. the daily limit) is in the response body
+    const details = await error.context?.json?.().catch(() => null)
+    throw new Error(details?.error || 'Could not identify plant — try again or search by name')
   }
-  const plant = await res.json()
-  if (plant.error) throw new Error(plant.error)
-  return { plant, probability: plant.confidence === 'high' ? 0.9 : plant.confidence === 'medium' ? 0.7 : 0.5 }
-}
-
-async function lookupPlantByName(name) {
-  const res = await fetch(EDGE_URL, {
-    method: 'POST', headers: EDGE_HDRS,
-    body: JSON.stringify({ name }),
-  })
-  if (!res.ok) {
-    const err = await res.json().catch(() => ({}))
-    throw new Error(err.error || 'Could not look up plant')
-  }
-  const plant = await res.json()
-  if (plant.error) throw new Error(plant.error)
-  return plant
+  if (!data?.profile) throw new Error('Could not identify plant — try again or search by name')
+  return data
 }
