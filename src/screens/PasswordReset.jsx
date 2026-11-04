@@ -1,6 +1,7 @@
-import { useState, useEffect } from 'react'
+import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { supabase } from '../lib/supabase'
+import { useAuth } from '../context/AuthContext'
 
 export default function PasswordReset() {
   const [password, setPassword] = useState('')
@@ -8,18 +9,19 @@ export default function PasswordReset() {
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
   const [success, setSuccess] = useState(false)
-  const [ready, setReady] = useState(false)
   const navigate = useNavigate()
+  const {
+    recoveryMode, endRecovery, signOut, isAuthenticated,
+    loading: authLoading, linkError,
+  } = useAuth()
 
-  useEffect(() => {
-    // Supabase fires PASSWORD_RECOVERY when the user arrives via the reset link
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((event) => {
-      if (event === 'PASSWORD_RECOVERY') {
-        setReady(true)
-      }
-    })
-    return () => subscription.unsubscribe()
-  }, [])
+  // Leaving without setting a password signs the user out again, so a
+  // reset link can't be used as a way to sign in.
+  const cancel = async () => {
+    if (recoveryMode && isAuthenticated) await signOut()
+    else endRecovery()
+    navigate('/auth', { replace: true })
+  }
 
   const handleSubmit = async (e) => {
     e.preventDefault()
@@ -43,12 +45,16 @@ export default function PasswordReset() {
       setLoading(false)
     } else {
       setSuccess(true)
-      setTimeout(() => navigate('/auth'), 2500)
+      // Already signed in by the reset link, so go straight to the garden
+      setTimeout(() => {
+        endRecovery()
+        navigate('/', { replace: true })
+      }, 2500)
     }
   }
 
-  // Waiting for the PASSWORD_RECOVERY event from the email link
-  if (!ready && !success) {
+  // Reading the reset link and signing in
+  if (authLoading && !success) {
     return (
       <div className="min-h-screen bg-fern flex flex-col items-center justify-center gap-4">
         <div className="animate-pulse">
@@ -59,11 +65,30 @@ export default function PasswordReset() {
         </div>
         <p className="font-serif text-sage text-xl tracking-widest">Sown</p>
         <p className="text-moss text-xs tracking-widest">Verifying your reset link…</p>
+      </div>
+    )
+  }
+
+  // Opened without a working reset link (expired, already used, or typed in)
+  if (!success && (!recoveryMode || !isAuthenticated)) {
+    return (
+      <div className="min-h-screen bg-fern flex flex-col items-center justify-center gap-4 px-8 text-center">
+        <svg width="36" height="48" viewBox="0 0 36 48">
+          <ellipse cx="18" cy="13" rx="11" ry="13" fill="#D4DCCA"/>
+          <ellipse cx="18" cy="35" rx="11" ry="13" fill="#D4DCCA" transform="rotate(180 18 35)"/>
+        </svg>
+        <p className="font-serif text-sage text-xl tracking-widest">Sown</p>
+        <p className="text-sage text-sm leading-relaxed">
+          This reset link has expired or has already been used.
+        </p>
+        {linkError && (
+          <p className="text-moss text-xs leading-relaxed">{linkError}</p>
+        )}
         <button
-          onClick={() => navigate('/auth')}
-          className="mt-4 text-moss text-xs underline underline-offset-2"
+          onClick={cancel}
+          className="mt-2 bg-sage text-fern text-sm font-medium px-6 py-3 rounded-xl tracking-wide active:opacity-80"
         >
-          Back to sign in
+          Request a new link
         </button>
       </div>
     )
@@ -86,7 +111,7 @@ export default function PasswordReset() {
           <div className="flex flex-col gap-4">
             <div className="bg-leaf rounded-xl px-4 py-3">
               <p className="text-sm text-fern leading-relaxed">
-                Password updated! Redirecting you to sign in…
+                Password updated! Taking you to your garden…
               </p>
             </div>
           </div>
@@ -136,10 +161,10 @@ export default function PasswordReset() {
 
             <button
               type="button"
-              onClick={() => navigate('/auth')}
+              onClick={cancel}
               className="text-subtle text-xs text-center underline underline-offset-2"
             >
-              Back to sign in
+              Cancel and go back to sign in
             </button>
           </form>
         )}

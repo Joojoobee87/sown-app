@@ -1,7 +1,7 @@
 // src/App.jsx — Working authentication with real Supabase integration
 import { useEffect } from 'react'
-import { BrowserRouter, Routes, Route, useLocation } from 'react-router-dom'
-import { AuthProvider } from './context/AuthContext'
+import { BrowserRouter, Routes, Route, useLocation, useNavigate } from 'react-router-dom'
+import { AuthProvider, useAuth } from './context/AuthContext'
 import ProtectedRoute from './components/ProtectedRoute'
 import Auth from './screens/Auth'
 import Home from './screens/Home'
@@ -22,11 +22,27 @@ function ScrollToTop() {
   return null
 }
 
+// A password recovery link can open on any page (links sent from the
+// Supabase dashboard go to the Site URL, "/"). Wherever it lands, send the
+// user to set a new password instead of letting them straight in.
+function RecoveryRedirect() {
+  const { recoveryMode } = useAuth()
+  const { pathname } = useLocation()
+  const navigate = useNavigate()
+  useEffect(() => {
+    if (recoveryMode && pathname !== '/password-reset') {
+      navigate('/password-reset', { replace: true })
+    }
+  }, [recoveryMode, pathname, navigate])
+  return null
+}
+
 export default function App() {
   return (
     <BrowserRouter>
       <AuthProvider>
         <ScrollToTop />
+        <RecoveryRedirect />
         <div className="max-w-md mx-auto min-h-screen relative bg-parchment">
           <Routes>
             {/* Public auth routes */}

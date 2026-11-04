@@ -46,8 +46,11 @@ function SownLoader() {
 
 // ─── Protected Route ──────────────────────────────────────────────────────────
 export default function ProtectedRoute({ children }) {
-  const { isAuthenticated, loading, error } = useAuth()
+  const { isAuthenticated, loading, error, recoveryMode } = useAuth()
   const location = useLocation()
+
+  // Opened from a password reset link: set a new password first
+  if (recoveryMode) return <Navigate to="/password-reset" replace />
 
   if (loading) return <SownLoader />
 
