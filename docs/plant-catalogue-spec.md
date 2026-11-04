@@ -31,7 +31,7 @@ Profiles are stored as a **species parent** with slim **variety children**. A va
 
 | Field | Values | Notes |
 | --- | --- | --- |
-| parent_id | link to species record | Empty on a species record |
+| parent_id | link to species record | Empty on a species record. A plant with no species (e.g. *Rosa* 'Peace') uses its genus record (*Rosa*) as the parent |
 | slug | text, unique | Built from the botanical name, e.g. `lavandula-angustifolia-hidcote`; species records drop the cultivar part. Matches the folder name in the photo archive |
 | genus, species, cultivar | text | Cultivar empty on a species record |
 | common_names | list | First one is shown by default |
@@ -48,7 +48,7 @@ Profiles are stored as a **species parent** with slim **variety children**. A va
 | rhs_hardiness | H1a, H1b, H1c, H2, H3, H4, H5, H6, H7 | UK standard; no US zones |
 | sun | full sun, partial shade, full shade (choose any) | |
 | aspect | N, E, S, W (choose any) | |
-| exposure | sheltered, exposed | |
+| exposure | sheltered, exposed (choose any) | |
 | soil_type | clay, loam, sand, chalk (choose any) | |
 | soil_moisture | well-drained, moist but well-drained, poorly drained | |
 | soil_ph | acid, neutral, alkaline (choose any) | |
@@ -58,6 +58,7 @@ Profiles are stored as a **species parent** with slim **variety children**. A va
 | difficulty | beginner, some experience, expert | |
 | water_need | low, medium, high | Shown on the care label; drives the dry-spell alert |
 | water_notes | short text | e.g. "Water well in its first summer, then only in long dry spells" |
+| flowering_months | 1–12, choose any | Standard UK timing |
 
 ## Care tasks and reminders
 
@@ -71,7 +72,8 @@ Reminders cover real jobs (sow, prune, feed, protect), not routine watering. Wat
 | task_type | sow indoors, sow outdoors, plant out, plant, feed, prune, deadhead, divide, lift and store, protect for winter, harvest | No routine watering task |
 | months | 1–12, choose any | Standard UK timing |
 | trigger | none, after last frost | Kept to one trigger at launch |
-| applies_to | grown from seed, bought as a plant, in a pot, in the ground | Matched against the user's plant |
+| repeat | once, ongoing | **Once**: marked as done once a year, then returns next year. **Ongoing** (e.g. deadheading through summer): shown as a reminder only, with no "mark as done" |
+| applies_to | grown from seed, grown from bulb, bought as a plant, in a pot, in the ground (choose any) | Matched against the user's plant |
 | instructions | short text | Sown's voice; one or two sentences |
 
 ### How reminders reach the user
@@ -93,7 +95,8 @@ Safety defaults to **Unknown** and changes only when Jo checks the plant against
 | safety_status | Unknown, HTA category A, HTA category B, HTA category C, HTA bulb or ornamental fruit label, Not on HTA list | Default Unknown |
 | harmful_to | people, pets, both | Only when on the HTA list |
 | harmful_parts | text | e.g. all parts, seeds, sap |
-| skin_irritant | yes / no | |
+| harmful_if_eaten | yes / no | Fills "if eaten" in the wording below |
+| skin_irritant | yes / no | Fills "if touched" in the wording below |
 | hta_edition | text | e.g. 3rd edition |
 | safety_verified_by, safety_verified_at | person, date | |
 | pets_affected | dogs, cats, rabbits, rodents, tortoises, caged birds, poultry (choose any) | As named in the HTA guide; other pets may still be affected |
@@ -139,10 +142,10 @@ These fields are reserved now and left empty until the product range is develope
 
 | Field | Values | Notes |
 | --- | --- | --- |
-| status | draft, verified | Shown to users as "Sown guide (unverified)" or "Verified by Sown" |
+| status | draft, verified | Shown to users as "Sown guide (unverified)" or "Verified by Sown". Users see every verified profile, plus drafts linked to their own plants (e.g. one created by their scan). A variety can't be verified before its species |
 | field_sources | per field: Claude, label, API, Jo | Shows where each fact came from |
 | verified_by, verified_at | person, date | |
-| label_photo_refs | links | Jo's label photos used to cross-check; kept private |
+| label_photo_refs | links | Jo's label photos used to cross-check; kept private. Stored in their own admin-only table so users who can read a profile can't see them |
 | last_reviewed | date | |
 
 ## User's plant and garden zones
@@ -172,7 +175,7 @@ A user's plant is their own record of one plant: where it is, when it went in, u
 | in_pot | yes / no | Picks which care tasks apply; pots are included in dry-spell alerts |
 | quantity | number | Optional, e.g. 6 lobelia in one pot |
 | added_via | label scan, search, photo ID, Sown kit | |
-| needs_details | yes / no | Set when zone or planting details are missing |
+| needs_details | yes / no | Worked out automatically: yes when a growing plant is missing its zone, planted year, started-as or pot setting |
 | photos | up to 2 | Compressed on the phone before upload, plus a ~30 KB thumbnail |
 | notes | dated entries | e.g. "Moved to the sunnier end, May 2027" |
 | status | growing, want to grow, gone | 'Want to grow' is a wishlist (kept from the summer build); gone keeps the history without cluttering the list |
@@ -182,6 +185,20 @@ A user's plant is their own record of one plant: where it is, when it went in, u
 ## Photo storage
 
 Photos are resized on the phone to about 1,200 px / 200 KB before upload, with a ~30 KB thumbnail for lists. Stored in Supabase Storage; Supabase Pro ($25/month) includes 100 GB storage and 250 GB egress, enough for roughly 500,000 photos. Label photos are never uploaded to public storage.
+
+All three buckets are private, and the app shows images through short-lived signed links.
+
+| Bucket | Holds | Who can read | Who can upload |
+| --- | --- | --- | --- |
+| plant-photos | Users' own plant photos, in a folder per user | The owner only | The owner only |
+| catalogue-photos | Jo's photos for plant profiles, in a folder per slug | Anyone signed in | Admin only |
+| catalogue-label-photos | Jo's label photos, in a folder per slug | Admin only | Admin only |
+
+## Database notes
+
+- **Catalogue editing.** Only an admin (Jo) can create or change profiles and care tasks. Admin is a flag on Jo's account, set from the Supabase dashboard.
+- **New plants from the app.** When a scan or search finds a plant that isn't in the catalogue, the app asks a server-side function to create a draft. The draft has only its name filled in, and its safety is Unknown. Existing profiles are never changed by the app.
+- **Stored values.** Fixed lists are stored as short lowercase codes (e.g. `partial_shade`, `hta_a`, `want_to_grow`), and the app turns them into the wording shown here.
 
 ## Decisions
 
@@ -197,3 +214,8 @@ Photos are resized on the phone to about 1,200 px / 200 KB before upload, with a
 | Up to 2 photos, month and year planted, notes and zones on each user's plant | Agreed |
 | Dry-spell threshold: 5 days in a row under 2 mm of rain, May–September | Agreed; tune after testing |
 | Safety disclaimer wording | Open; to be checked before launch |
+| Users see verified profiles plus drafts linked to their own plants | Agreed |
+| Plants with no species use their genus as the parent record | Agreed |
+| Care tasks repeat once a year or are ongoing reminders | Agreed |
+| Catalogue edits are admin-only; the app creates drafts through a server-side function | Agreed |
+| New catalogue tables built alongside the old ones; old tables dropped once the app has moved over | Agreed |

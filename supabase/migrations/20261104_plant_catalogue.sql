@@ -86,9 +86,23 @@ create type task_type as enum (
 
 create type task_trigger as enum ('none', 'after_last_frost');
 
+-- once:    done once a year; "mark as done" clears it until next year
+-- ongoing: repeats through its months (e.g. deadheading); shown as a
+--          reminder only, with no "mark as done"
+create type task_repeat as enum ('once', 'ongoing');
+
 create type task_applies_to as enum (
-  'grown_from_seed', 'bought_as_plant', 'in_pot', 'in_ground'
+  'grown_from_seed', 'grown_from_bulb', 'bought_as_plant', 'in_pot', 'in_ground'
 );
+
+-- A list of months, 1 = January … 12 = December. Used for care task
+-- months and flowering months.
+create domain month_list as integer[]
+  check (
+    cardinality(value) between 1 and 12
+    and value <@ array[1,2,3,4,5,6,7,8,9,10,11,12]
+    and array_position(value, null) is null
+  );
 
 create type zone_type as enum (
   'border', 'bed', 'pots', 'greenhouse', 'indoors', 'lawn', 'other'
@@ -181,6 +195,8 @@ $$;
 -- ─── 3. Catalogue ───────────────────────────────────────────────────────────
 
 -- One row per species (parent_id empty) or variety (parent_id → species).
+-- A plant with no species, e.g. Rosa 'Peace', has the genus (Rosa, slug
+-- 'rosa') as its parent: a "species" record with species left empty.
 -- A variety stores only what differs from its species: empty (null) fields
 -- are inherited. Use plant_profiles_resolved to read the combined values.
 create table public.plant_profiles (
@@ -205,7 +221,7 @@ create table public.plant_profiles (
   sun                    sun_level[],
   aspect                 compass_point[]
                          check (aspect <@ array['N','E','S','W']::compass_point[]),
-  exposure               exposure,
+  exposure               exposure[],
   soil_type              soil_type[],
   soil_moisture          soil_moisture,
   soil_ph                soil_ph[],
@@ -219,13 +235,15 @@ create table public.plant_profiles (
   difficulty             difficulty,
   water_need             water_need,
   water_notes            text,
+  flowering_months       month_list,
 
   -- Safety: HTA list only, never AI. Defaults to 'unknown' on species
   -- (set by trigger); left empty on a variety, which inherits its species.
   safety_status          safety_status,
   harmful_to             harmful_to,
   harmful_parts          text,
-  skin_irritant          boolean,
+  harmful_if_eaten       boolean,
+  skin_irritant          boolean,         -- harmful if touched
   hta_edition            text,
   pets_affected          pet_kind[],
   hta_condition          text,            -- e.g. "female plants only"
@@ -357,14 +375,12 @@ create table public.plant_care_tasks (
   id            uuid primary key default gen_random_uuid(),
   plant_id      uuid not null references public.plant_profiles (id) on delete cascade,
   task_type     task_type not null,
-  months        integer[] not null check (
-                  cardinality(months) between 1 and 12
-                  and months <@ array[1,2,3,4,5,6,7,8,9,10,11,12]
-                  and array_position(months, null) is null
-                ),
+  months        month_list not null,
   task_trigger  task_trigger not null default 'none',
+  repeat        task_repeat not null default 'once',
   applies_to    task_applies_to[] not null
-                default array['grown_from_seed', 'bought_as_plant', 'in_pot', 'in_ground']::task_applies_to[]
+                default array['grown_from_seed', 'grown_from_bulb', 'bought_as_plant',
+                              'in_pot', 'in_ground']::task_applies_to[]
                 check (cardinality(applies_to) >= 1),
   instructions  text not null check (length(btrim(instructions)) > 0),
   created_at    timestamptz not null default now(),
@@ -482,8 +498,9 @@ create trigger garden_plant_notes_updated_at
   for each row execute function public.set_updated_at();
 
 
--- "Mark as done" for a care task, per month and year, so the task comes
--- back next year (same approach as the old user_task_completions table).
+-- "Mark as done" for a 'once' care task: one row per plant, task and year,
+-- so the task comes back next year. month records when it was done.
+-- 'ongoing' tasks can't be marked done (enforced by the trigger below).
 create table public.garden_task_completions (
   id               uuid primary key default gen_random_uuid(),
   garden_plant_id  uuid not null,
@@ -492,10 +509,28 @@ create table public.garden_task_completions (
   year             smallint not null check (year between 2000 and 2100),
   month            smallint not null check (month between 1 and 12),
   completed_at     timestamptz not null default now(),
-  unique (garden_plant_id, care_task_id, year, month),
+  unique (garden_plant_id, care_task_id, year),
   foreign key (garden_plant_id, user_id)
     references public.garden_plants (id, user_id) on delete cascade
 );
+
+create function public.garden_task_completions_once_only()
+returns trigger
+language plpgsql
+security definer   -- reads the task even if the user can't (e.g. a since-unlinked draft)
+set search_path = ''
+as $$
+begin
+  if (select repeat from public.plant_care_tasks where id = new.care_task_id) = 'ongoing' then
+    raise exception 'Ongoing tasks are reminders only and cannot be marked as done';
+  end if;
+  return new;
+end;
+$$;
+
+create trigger garden_task_completions_once_only
+  before insert or update on public.garden_task_completions
+  for each row execute function public.garden_task_completions_once_only();
 
 create index garden_task_completions_task_idx on public.garden_task_completions (care_task_id);
 
@@ -524,7 +559,7 @@ select
   coalesce(p.rhs_hardiness, s.rhs_hardiness)                  as rhs_hardiness,
   coalesce(nullif(p.sun, '{}'), s.sun)                        as sun,
   coalesce(nullif(p.aspect, '{}'), s.aspect)                  as aspect,
-  coalesce(p.exposure, s.exposure)                            as exposure,
+  coalesce(nullif(p.exposure, '{}'), s.exposure)              as exposure,
   coalesce(nullif(p.soil_type, '{}'), s.soil_type)            as soil_type,
   coalesce(p.soil_moisture, s.soil_moisture)                  as soil_moisture,
   coalesce(nullif(p.soil_ph, '{}'), s.soil_ph)                as soil_ph,
@@ -544,12 +579,14 @@ select
   coalesce(p.difficulty, s.difficulty)                        as difficulty,
   coalesce(p.water_need, s.water_need)                        as water_need,
   coalesce(p.water_notes, s.water_notes)                      as water_notes,
+  coalesce(p.flowering_months, s.flowering_months)            as flowering_months,
 
   -- Safety: the variety's own block if it has a status, otherwise the species'.
   -- If the species can't be read either, this falls back to 'unknown'.
   coalesce(p.safety_status, s.safety_status, 'unknown')       as safety_status,
   case when p.safety_status is not null then p.harmful_to         else s.harmful_to         end as harmful_to,
   case when p.safety_status is not null then p.harmful_parts      else s.harmful_parts      end as harmful_parts,
+  case when p.safety_status is not null then p.harmful_if_eaten   else s.harmful_if_eaten   end as harmful_if_eaten,
   case when p.safety_status is not null then p.skin_irritant      else s.skin_irritant      end as skin_irritant,
   case when p.safety_status is not null then p.hta_edition        else s.hta_edition        end as hta_edition,
   case when p.safety_status is not null then p.pets_affected      else s.pets_affected      end as pets_affected,
@@ -812,12 +849,17 @@ grant execute on function public.create_draft_plant_profile(text, text, text, te
 -- plant-photos: users' own photos, private, owner-only.
 --   Path: {user_id}/{garden_plant_id}/{file}.webp  (and ..._thumb.webp)
 --   The app shows them with signed URLs (createSignedUrl), not public links.
+-- catalogue-photos: Jo's own photos for plant profiles. Any signed-in user
+--   can read; only admins can write. Private, so also via signed URLs.
+--   Path: {plant_profile_slug}/{file}.webp  (matches plant_profiles.photo_paths)
 -- catalogue-label-photos: Jo's label photos, private, admin-only.
 --   Path: {plant_profile_slug}/{file}.jpg
 
 insert into storage.buckets (id, name, public, file_size_limit, allowed_mime_types)
 values
   ('plant-photos', 'plant-photos', false, 2097152,            -- 2 MB
+   array['image/jpeg', 'image/webp']),
+  ('catalogue-photos', 'catalogue-photos', false, 2097152,    -- 2 MB
    array['image/jpeg', 'image/webp']),
   ('catalogue-label-photos', 'catalogue-label-photos', false, 10485760,  -- 10 MB
    array['image/jpeg', 'image/png', 'image/webp', 'image/heic'])
@@ -844,6 +886,23 @@ create policy "Sown: users delete own plant photos"
   on storage.objects for delete to authenticated
   using (bucket_id = 'plant-photos'
          and (storage.foldername(name))[1] = (select auth.uid())::text);
+
+create policy "Sown: signed-in users read catalogue photos"
+  on storage.objects for select to authenticated
+  using (bucket_id = 'catalogue-photos');
+
+create policy "Sown: admins upload catalogue photos"
+  on storage.objects for insert to authenticated
+  with check (bucket_id = 'catalogue-photos' and (select public.is_catalogue_admin()));
+
+create policy "Sown: admins replace catalogue photos"
+  on storage.objects for update to authenticated
+  using (bucket_id = 'catalogue-photos' and (select public.is_catalogue_admin()))
+  with check (bucket_id = 'catalogue-photos' and (select public.is_catalogue_admin()));
+
+create policy "Sown: admins delete catalogue photos"
+  on storage.objects for delete to authenticated
+  using (bucket_id = 'catalogue-photos' and (select public.is_catalogue_admin()));
 
 create policy "Sown: admins manage label photos"
   on storage.objects for all to authenticated

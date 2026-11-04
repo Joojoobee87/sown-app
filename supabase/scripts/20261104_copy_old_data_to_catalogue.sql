@@ -16,8 +16,9 @@
 -- Every copied profile is status 'draft' with safety_status 'unknown'.
 -- Not copied: plants.toxic (safety comes from the HTA list only),
 -- photo_url / illustration_url (profile photos must be Jo's own),
--- frost_hardiness, growth_rate, flowering_season, wildlife_value,
--- notes_for_buyer and the free-text height / spread.
+-- frost_hardiness, growth_rate, wildlife_value, notes_for_buyer and the
+-- free-text height / spread. flowering_season is turned into
+-- flowering_months where it names months or seasons.
 -- ════════════════════════════════════════════════════════════════════════════
 
 begin;
@@ -42,6 +43,49 @@ as $$
     when t ~* 'protect|fleece|frost|overwinter'  then 'protect_for_winter'
     when t ~* 'harvest|\mpick'                   then 'harvest'
   end::task_type
+$$;
+
+-- Turns free text like "June to August", "Late spring" or "Jul, Sep" into
+-- month numbers. Seasons: spring 3–5, summer 6–8, autumn 9–11, winter 12–2.
+-- Returns null if nothing is recognised.
+create or replace function pg_temp.parse_months(t text)
+returns int[]
+language plpgsql
+immutable
+as $$
+declare
+  names  text[] := array['jan','feb','mar','apr','may','jun','jul','aug','sep','oct','nov','dec'];
+  -- Whole month words only, full or short ("sep" but not "separate")
+  mon    text   := '(?:jan(?:uary)?|feb(?:ruary)?|mar(?:ch)?|apr(?:il)?|may|june?|july?|aug(?:ust)?|sep(?:t|tember)?|oct(?:ober)?|nov(?:ember)?|dec(?:ember)?)';
+  s      text   := lower(coalesce(t, ''));
+  result int[]  := '{}';
+  r      text[];
+  a      int;
+  b      int;
+begin
+  -- Ranges: "june to august", "jun-aug", "may until july"
+  for r in select regexp_matches(s,
+      '\m(' || mon || ')\M\.?\s*(?:to|-|–|until|through|till)\s*(' || mon || ')\M', 'g')
+  loop
+    a := array_position(names, left(r[1], 3));
+    b := array_position(names, left(r[2], 3));
+    for i in 0 .. ((b - a + 12) % 12) loop
+      result := result || ((a - 1 + i) % 12 + 1);
+    end loop;
+  end loop;
+  -- Single months
+  for r in select regexp_matches(s, '\m(' || mon || ')\M', 'g') loop
+    result := result || array_position(names, left(r[1], 3));
+  end loop;
+  -- Seasons
+  if s ~ 'spring'          then result := result || array[3,4,5];   end if;
+  if s ~ 'summer'          then result := result || array[6,7,8];   end if;
+  if s ~ 'autumn|\mfall\M' then result := result || array[9,10,11]; end if;
+  if s ~ 'winter'          then result := result || array[12,1,2];  end if;
+
+  select array_agg(distinct m order by m) into result from unnest(result) m;
+  return nullif(result, '{}');
+end;
 $$;
 
 -- Old plant id → new profile id
@@ -107,6 +151,7 @@ begin
       height_cm_min = coalesce(p.height_cm_min, least(r.height_cm_min, coalesce(r.height_cm_max, r.height_cm_min))),
       height_cm_max = coalesce(p.height_cm_max, greatest(r.height_cm_max, coalesce(r.height_cm_min, r.height_cm_max))),
       water_notes = coalesce(p.water_notes, r.watering),
+      flowering_months = coalesce(p.flowering_months, pg_temp.parse_months(r.flowering_season)::month_list),
       care_ongoing = coalesce(p.care_ongoing, nullif(concat_ws(E'\n\n',
                        r.care_notes,
                        case when r.pruning_when is not null or r.pruning_how is not null
@@ -120,6 +165,7 @@ begin
                         'soil_type',         case when r.soil_type is not null then 'claude' end,
                         'height_cm',         case when r.height_cm_min is not null or r.height_cm_max is not null then 'claude' end,
                         'water_notes',       case when r.watering is not null then 'claude' end,
+                        'flowering_months',  case when pg_temp.parse_months(r.flowering_season) is not null then 'claude' end,
                         'care_ongoing',      case when r.care_notes is not null or r.pruning_how is not null then 'claude' end,
                         'care_through_year', case when r.winter_care is not null then 'claude' end
                       )) || p.field_sources
@@ -133,9 +179,13 @@ end $$;
 
 -- Care tasks from the old care_calendar JSON, for profiles with no tasks yet.
 -- One row per profile and task type, with all its months combined.
-insert into public.plant_care_tasks (plant_id, task_type, months, instructions)
+-- Deadheading, feeding and harvesting become 'ongoing' (reminder only);
+-- everything else is 'once' a year. Jo can change this when reviewing.
+insert into public.plant_care_tasks (plant_id, task_type, repeat, months, instructions)
 select m.profile_id,
        pg_temp.map_task_type(e ->> 'task')                         as task_type,
+       case when pg_temp.map_task_type(e ->> 'task') in ('deadhead', 'feed', 'harvest')
+            then 'ongoing' else 'once' end::task_repeat,
        array_agg(distinct (e ->> 'month')::int order by (e ->> 'month')::int),
        left(string_agg(distinct coalesce(nullif(btrim(e ->> 'detail'), ''), e ->> 'task'), ' '), 500)
 from public.plants p
@@ -214,8 +264,9 @@ where x.body is not null
   );
 
 
--- Task completions: matched to a care task of the same type that falls in
--- that month. Completions with no matching task are skipped.
+-- Task completions: matched to a 'once' care task of the same type that
+-- falls in that month. Completions with no matching task are skipped, and
+-- only the first completion per task and year is kept.
 insert into public.garden_task_completions (
   garden_plant_id, user_id, care_task_id, year, month, completed_at
 )
@@ -227,6 +278,7 @@ cross join lateral (
   where r.for_plant_id = g.plant_id
     and r.task_type = pg_temp.map_task_type(c.task)
     and c.month = any (r.months)
+    and r.repeat = 'once'
   order by r.inherited
   limit 1
 ) t
