@@ -103,3 +103,7 @@ Thumbs.db
 
 # Supabase CLI local state
 supabase/.temp/
+
+# HTA list (copyright): never commit the CSV or the generated seed
+*.csv
+supabase/seed/*.local.sql
