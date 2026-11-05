@@ -8,7 +8,6 @@ import Home from './screens/Home'
 import Scan from './screens/Scan'
 import Library from './screens/Library'
 import Calendar from './screens/Calendar'
-import PlantProfile from './screens/PlantProfile'
 import NavBar from './components/NavBar'
 import PasswordReset from './screens/PasswordReset'
 import About from './screens/About'
@@ -61,9 +60,6 @@ export default function App() {
             }/>
             <Route path="/calendar" element={
               <ProtectedRoute><Calendar /></ProtectedRoute>
-            }/>
-            <Route path="/plant/:id" element={
-              <ProtectedRoute><PlantProfile /></ProtectedRoute>
             }/>
             <Route path="/about" element={
               <ProtectedRoute><About /></ProtectedRoute>

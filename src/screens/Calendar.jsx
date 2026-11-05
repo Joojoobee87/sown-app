@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { supabase } from '../lib/supabase'
-import { getTasksForMonth } from '../lib/careCalendar'
+import { loadGardenCare, getTasksForMonth } from '../lib/careCalendar'
 import TopBar from '../components/TopBar'
 import SownIcon from '../components/SownIcon'
 
@@ -15,42 +15,29 @@ const SHORT_MONTHS = [
   'Jul','Aug','Sep','Oct','Nov','Dec'
 ]
 
-// ─── Category normalisation ────────────────────────────────────────────────────
-// Groups similar task verbs into display categories with an icon
-const CATEGORY_MAP = [
-  { key: 'Pruning',            icon: '✂️', test: a => /prun/i.test(a) },
-  { key: 'Watering',           icon: '💧', test: a => /water/i.test(a) },
-  { key: 'Deadheading',        icon: '🌸', test: a => /deadhead|dead head/i.test(a) },
-  { key: 'Feeding',            icon: '🌿', test: a => /feed|fertili/i.test(a) },
-  { key: 'Mulching',           icon: '🍂', test: a => /mulch/i.test(a) },
-  { key: 'Winter care',        icon: '❄️', test: a => /winter|protect/i.test(a) },
-  { key: 'Planting & sowing',  icon: '🌱', test: a => /plant|sow/i.test(a) },
-  { key: 'Lifting & dividing', icon: '🪴', test: a => /lift|divid/i.test(a) },
-  { key: 'Planning',           icon: '📋', test: a => /plan/i.test(a) },
-]
-
-function normaliseCategory(action = '') {
-  for (const { key, test } of CATEGORY_MAP) {
-    if (test(action)) return key
-  }
-  return action || 'Other'
+// ─── Categories ───────────────────────────────────────────────────────────────
+// Task types are grouped into categories in src/lib/careCalendar.js
+const CATEGORY_ICONS = {
+  'Planting & sowing':  '🌱',
+  'Pruning':            '✂️',
+  'Deadheading':        '🌸',
+  'Feeding':            '🌿',
+  'Lifting & dividing': '🪴',
+  'Winter care':        '❄️',
+  'Harvesting':         '🧺',
 }
-
-function categoryIcon(cat) {
-  return CATEGORY_MAP.find(c => c.key === cat)?.icon ?? '🌿'
-}
+const categoryIcon = (cat) => CATEGORY_ICONS[cat] ?? '🌿'
 
 function groupByCategory(tasks) {
   const groups = {}
-  tasks.forEach(t => {
-    const cat = normaliseCategory(t.action)
-    ;(groups[cat] ??= []).push(t)
-  })
+  tasks.forEach(t => { (groups[t.category] ??= []).push(t) })
   return groups
 }
 
-// ─── Completion key (no year — fetched per year already) ──────────────────────
-const completionKey = (t) => `${t.user_plant_id}-${t.month}-${t.action}`
+// ─── Completion ───────────────────────────────────────────────────────────────
+// A once-a-year job is done for the whole year once it's ticked in any of its
+// months. Ongoing jobs (e.g. deadheading) are reminders and can't be ticked.
+const completionKey = (t) => `${t.garden_plant_id}:${t.care_task_id}`
 
 // ─── Botanical thumbnail ──────────────────────────────────────────────────────
 function BotanicalThumb({ name = '', color = '#4A5940', size = 32 }) {
@@ -87,8 +74,10 @@ function BotanicalThumb({ name = '', color = '#4A5940', size = 32 }) {
 }
 
 // ─── Task card ────────────────────────────────────────────────────────────────
-function TaskCard({ task, isComplete, onToggle, toggling }) {
+function TaskCard({ task, doneInMonth, onToggle, toggling }) {
   const [expanded, setExpanded] = useState(false)
+  const isComplete = doneInMonth != null
+  const isReminder = task.repeat === 'ongoing'
 
   return (
     <div className={`w-full border rounded-xl p-3 flex gap-3 items-start
@@ -134,8 +123,16 @@ function TaskCard({ task, isComplete, onToggle, toggling }) {
           {task.urgency === 'urgent' && !isComplete && (
             <span className="text-[10px] bg-clay/20 text-clay px-1.5 py-0.5
                              rounded-full font-medium flex-shrink-0">
-              this week
+              last month for this
             </span>
+          )}
+          {isComplete && doneInMonth !== task.month && (
+            <span className="text-[10px] text-fern flex-shrink-0">
+              done in {SHORT_MONTHS[doneInMonth - 1]}
+            </span>
+          )}
+          {isReminder && (
+            <span className="text-[10px] text-subtle flex-shrink-0">reminder</span>
           )}
         </div>
         {task.location && (
@@ -155,7 +152,8 @@ function TaskCard({ task, isComplete, onToggle, toggling }) {
         )}
       </button>
 
-      {/* Tick button */}
+      {/* Tick button — once-a-year jobs only */}
+      {!isReminder && (
       <button
         onClick={onToggle}
         disabled={toggling}
@@ -174,6 +172,7 @@ function TaskCard({ task, isComplete, onToggle, toggling }) {
           </svg>
         )}
       </button>
+      )}
     </div>
   )
 }
@@ -404,25 +403,18 @@ export default function Calendar() {
   const [frostData, setFrostData]   = useState(null)
   const [location]                  = useState('Leeds')
   const [showUpgrade, setUpgrade]   = useState(false)
-  const [userPlants, setUserPlants] = useState([])
+  const [garden, setGarden]         = useState({ plants: [], tasksByProfile: {} })
   const [loading, setLoading]       = useState(true)
-  const [completedKeys, setCompleted] = useState(new Set())
+  const [completed, setCompleted]   = useState(new Map())   // completionKey → month done
   const [toggling, setToggling]     = useState(null)
   const [zoneFilter, setZoneFilter] = useState('All')
 
-  // ── Fetch user's plants with care data ────────────────────────────────────
+  // ── Fetch the user's growing plants and their catalogue care tasks ─────────
   useEffect(() => {
     const fetchPlants = async () => {
       setLoading(true)
       try {
-        const { data: { user } } = await supabase.auth.getUser()
-        if (!user) return
-        const { data } = await supabase
-          .from('user_plants')
-          .select('id, status, location, plants(common_name, latin_name, photo_url, care_calendar, pruning_when, pruning_how, watering, winter_care, flowering_season)')
-          .eq('user_id', user.id)
-          .order('created_at', { ascending: true })
-        setUserPlants(data || [])
+        setGarden(await loadGardenCare())
       } finally {
         setLoading(false)
       }
@@ -433,17 +425,12 @@ export default function Calendar() {
   // ── Fetch completions for this year ───────────────────────────────────────
   useEffect(() => {
     const fetchCompletions = async () => {
-      const { data: { user } } = await supabase.auth.getUser()
-      if (!user) return
       const { data } = await supabase
-        .from('user_task_completions')
-        .select('user_plant_id, month, task')
-        .eq('user_id', user.id)
+        .from('garden_task_completions')
+        .select('garden_plant_id, care_task_id, month')
         .eq('year', year)
       if (data) {
-        setCompleted(new Set(data.map(r =>
-          `${r.user_plant_id}-${r.month}-${r.task}`
-        )))
+        setCompleted(new Map(data.map(r => [`${r.garden_plant_id}:${r.care_task_id}`, r.month])))
       }
     }
     fetchCompletions()
@@ -496,28 +483,27 @@ export default function Calendar() {
     if (toggling === key) return
     setToggling(key)
     try {
-      const { data: { user } } = await supabase.auth.getUser()
-      if (!user) return
-
-      if (completedKeys.has(key)) {
-        await supabase.from('user_task_completions')
+      if (completed.has(key)) {
+        const { error } = await supabase.from('garden_task_completions')
           .delete()
-          .eq('user_plant_id', task.user_plant_id)
-          .eq('month', task.month)
+          .eq('garden_plant_id', task.garden_plant_id)
+          .eq('care_task_id', task.care_task_id)
           .eq('year', year)
-          .eq('task', task.action)
-        setCompleted(prev => { const s = new Set(prev); s.delete(key); return s })
+        if (error) throw error
+        setCompleted(prev => { const m = new Map(prev); m.delete(key); return m })
       } else {
-        await supabase.from('user_task_completions')
+        const { error } = await supabase.from('garden_task_completions')
           .insert({
-            user_id:       user.id,
-            user_plant_id: task.user_plant_id,
-            month:         task.month,
+            garden_plant_id: task.garden_plant_id,
+            care_task_id:    task.care_task_id,
             year,
-            task:          task.action,
+            month:           task.month,
           })
-        setCompleted(prev => new Set([...prev, key]))
+        if (error) throw error
+        setCompleted(prev => new Map(prev).set(key, task.month))
       }
+    } catch (err) {
+      console.error('[Sown] could not update task:', err)
     } finally {
       setToggling(null)
     }
@@ -525,7 +511,7 @@ export default function Calendar() {
 
   // ── Tasks for selected month ───────────────────────────────────────────────
   const isCurrentMonth = month === now.getMonth() && year === now.getFullYear()
-  const allTasks = getTasksForMonth(month, userPlants, isCurrentMonth)
+  const allTasks = getTasksForMonth(month, garden, isCurrentMonth)
 
   // Zone filter — derived from plants that have tasks this month
   const zones = ['All', ...new Set(allTasks.map(t => t.location).filter(Boolean))]
@@ -534,8 +520,10 @@ export default function Calendar() {
     : allTasks.filter(t => t.location === zoneFilter)
 
   const grouped = groupByCategory(tasks)
+  // Progress counts once-a-year jobs; ongoing reminders can't be ticked
+  const jobs    = tasks.filter(t => t.repeat === 'once')
   const total   = tasks.length
-  const done    = tasks.filter(t => completedKeys.has(completionKey(t))).length
+  const done    = jobs.filter(t => completed.has(completionKey(t))).length
 
   const handleMonthChange = (m) => { setMonth(m); setZoneFilter('All') }
 
@@ -592,12 +580,12 @@ export default function Calendar() {
           />
 
           {/* Progress summary */}
-          {total > 0 && (
+          {jobs.length > 0 && (
             <div className="flex items-center justify-between
                             bg-white border border-moss/40 rounded-xl px-4 py-3">
               <div>
                 <p className="font-serif text-dark text-lg leading-none">
-                  {done} <span className="text-subtle text-base">of {total}</span>
+                  {done} <span className="text-subtle text-base">of {jobs.length}</span>
                 </p>
                 <p className="text-xs text-subtle mt-0.5">tasks done this month</p>
               </div>
@@ -605,7 +593,7 @@ export default function Calendar() {
               <div className="w-24 h-2 bg-leaf rounded-full overflow-hidden">
                 <div
                   className="h-full bg-fern rounded-full transition-all duration-300"
-                  style={{ width: total > 0 ? `${(done / total) * 100}%` : '0%' }}
+                  style={{ width: jobs.length > 0 ? `${(done / jobs.length) * 100}%` : '0%' }}
                 />
               </div>
             </div>
@@ -622,16 +610,18 @@ export default function Calendar() {
                   <p className="text-xs font-medium text-dark uppercase tracking-widest">
                     {cat}
                   </p>
-                  <span className="text-[10px] text-subtle ml-auto">
-                    {catTasks.filter(t => completedKeys.has(completionKey(t))).length}/{catTasks.length}
-                  </span>
+                  {catTasks.some(t => t.repeat === 'once') && (
+                    <span className="text-[10px] text-subtle ml-auto">
+                      {catTasks.filter(t => t.repeat === 'once' && completed.has(completionKey(t))).length}/{catTasks.filter(t => t.repeat === 'once').length}
+                    </span>
+                  )}
                 </div>
                 <div className="flex flex-col gap-2">
                   {catTasks.map(t => (
                     <TaskCard
                       key={t.id}
                       task={t}
-                      isComplete={completedKeys.has(completionKey(t))}
+                      doneInMonth={completed.get(completionKey(t))}
                       onToggle={() => handleToggle(t)}
                       toggling={toggling === completionKey(t)}
                     />

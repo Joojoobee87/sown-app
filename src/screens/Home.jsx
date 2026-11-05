@@ -1,9 +1,8 @@
 import { useState, useEffect } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
-import { supabase } from '../lib/supabase'
 import { useAuth } from '../context/AuthContext'
 import { requestPushPermission } from '../lib/pushNotifications'
-import { getTasksForMonth, normaliseCategory } from '../lib/careCalendar'
+import { loadGardenCare, getTasksForMonth } from '../lib/careCalendar'
 import TopBar from '../components/TopBar'
 
 // ─── Seasonal tips — shown when the user has plants ──────────────────────────
@@ -358,7 +357,7 @@ export default function Home() {
 
   const [plantCount, setPlantCount] = useState(null)
   const [zoneCount, setZoneCount]   = useState(null)
-  const [userPlants, setUserPlants] = useState([])
+  const [garden, setGarden]         = useState({ plants: [], tasksByProfile: {} })
   const [loading, setLoading]       = useState(true)
 
   // Show soft push prompt if browser supports it and user hasn't been asked or dismissed
@@ -389,30 +388,17 @@ export default function Home() {
   const todayQuote = DAILY_QUOTES[dayOfYear % DAILY_QUOTES.length]
 
   // Compute tasks inline during render — same pattern as Calendar
-  const thisMonthTasks = getTasksForMonth(monthIndex, userPlants, true)
+  const thisMonthTasks = getTasksForMonth(monthIndex, garden, true)
 
   useEffect(() => {
     const fetchCounts = async () => {
       setLoading(true)
       try {
-        const { data: { user: authUser } } = await supabase.auth.getUser()
-        if (!authUser) return
-
-        // Counts
-        const [{ count: plants }, { count: zones }] = await Promise.all([
-          supabase.from('user_plants').select('id', { count: 'exact', head: true }).eq('user_id', authUser.id),
-          supabase.from('garden_zones').select('id', { count: 'exact', head: true }).eq('user_id', authUser.id),
-        ])
-        setPlantCount(plants ?? 0)
-        setZoneCount(zones ?? 0)
-
-        // Plant care data — same query pattern as Calendar
-        const { data: plantsData } = await supabase
-          .from('user_plants')
-          .select('id, location, plants(common_name, photo_url, care_calendar, pruning_when, pruning_how, watering, winter_care, flowering_season)')
-          .eq('user_id', authUser.id)
-
-        setUserPlants(plantsData || [])
+        // Growing plants, zones and this month's care — same loader as Calendar
+        const care = await loadGardenCare()
+        setGarden(care)
+        setPlantCount(care.plants.length)
+        setZoneCount(care.zones.length)
       } finally {
         setLoading(false)
       }
@@ -460,7 +446,7 @@ export default function Home() {
             <div className="h-3 w-3/4 bg-moss/20 rounded animate-pulse" />
           </div>
         ) : hasPlants && thisMonthTasks.length > 0 ? (() => {
-          const categories = [...new Set(thisMonthTasks.map(t => normaliseCategory(t.action)))]
+          const categories = [...new Set(thisMonthTasks.map(t => t.category))]
           const top = thisMonthTasks[0]
           return (
             <button
