@@ -61,6 +61,22 @@ alter table public.plant_profiles
   add column safety_verified_by_name text;
 
 
+-- ─── Who is signed in, for "checked by" / "verified by" ──────────────────────
+-- Full name from the account, else forename + surname, else email.
+create function public.current_user_display_name()
+returns text
+language sql
+stable
+set search_path = ''
+as $$
+  select coalesce(
+    nullif(auth.jwt() -> 'user_metadata' ->> 'full_name', ''),
+    nullif(concat_ws(' ', auth.jwt() -> 'user_metadata' ->> 'forename',
+                          auth.jwt() -> 'user_metadata' ->> 'surname'), ''),
+    auth.jwt() ->> 'email')
+$$;
+
+
 -- ─── 2. Search ──────────────────────────────────────────────────────────────
 -- p_query: a botanical name ("Salvia nemorosa 'Caradonna'"), a genus, a
 -- synonym or a common name. Returns candidate rows (never cross-reference
@@ -200,11 +216,7 @@ begin
     raise exception 'No plant profile with id %', p_profile;
   end if;
 
-  who := coalesce(
-    nullif(auth.jwt() -> 'user_metadata' ->> 'full_name', ''),
-    nullif(concat_ws(' ', auth.jwt() -> 'user_metadata' ->> 'forename',
-                          auth.jwt() -> 'user_metadata' ->> 'surname'), ''),
-    auth.jwt() ->> 'email');
+  who := public.current_user_display_name();
 
   if p_hta_ref is null then
     select max(hta_edition) into edition from public.hta_entries;

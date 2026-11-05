@@ -3,6 +3,9 @@ import { useEffect } from 'react'
 import { BrowserRouter, Routes, Route, useLocation, useNavigate } from 'react-router-dom'
 import { AuthProvider, useAuth } from './context/AuthContext'
 import ProtectedRoute from './components/ProtectedRoute'
+import AdminRoute from './components/AdminRoute'
+import AdminQueue from './screens/admin/AdminQueue'
+import AdminPlant from './screens/admin/AdminPlant'
 import Auth from './screens/Auth'
 import Home from './screens/Home'
 import Scan from './screens/Scan'
@@ -69,6 +72,12 @@ export default function App() {
             }/>
             <Route path="/zones" element={
               <ProtectedRoute><GardenZones /></ProtectedRoute>
+            }/>
+            <Route path="/admin" element={
+              <AdminRoute><AdminQueue /></AdminRoute>
+            }/>
+            <Route path="/admin/plant/:id" element={
+              <AdminRoute><AdminPlant /></AdminRoute>
             }/>
             <Route path="/onboarding" element={
               <ProtectedRoute><Onboarding /></ProtectedRoute>

@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext'
+import { isAdmin } from './AdminRoute'
 import SownIcon from './SownIcon'
 
 // ─── Hamburger icon ───────────────────────────────────────────────────────────
@@ -114,6 +115,18 @@ function MenuDrawer({ onClose }) {
             <span className="text-fern"><PersonIcon /></span>
             My Profile
           </button>
+
+          {isAdmin(user) && (
+            <button
+              onClick={() => go('/admin')}
+              className="w-full text-left px-4 py-3 rounded-xl text-sm text-dark
+                         font-medium active:bg-leaf transition-colors
+                         flex items-center gap-3"
+            >
+              <span className="text-fern"><LeafIcon /></span>
+              Plant catalogue (admin)
+            </button>
+          )}
 
           <button
             onClick={() => go('/about')}
