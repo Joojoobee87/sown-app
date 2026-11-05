@@ -1,6 +1,10 @@
 -- ════════════════════════════════════════════════════════════════════════════
 -- OPTIONAL: copy test data from the old tables into the new catalogue tables
 --
+-- HISTORY: run on 4 Nov 2026. The old tables were retired on 5 Nov 2026
+-- (migrations/20261105_retire_old_tables.sql; copies kept in the archive
+-- schema), so this script no longer runs as written. Kept for reference.
+--
 -- Run by hand in the Supabase SQL editor, AFTER
 -- supabase/migrations/20261104_plant_catalogue.sql has been applied.
 -- It is not a migration and is not run automatically.

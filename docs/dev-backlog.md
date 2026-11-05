@@ -45,6 +45,7 @@ To do once Home and Calendar are on the new tables.
 - ~~Apply the catalogue migration~~ (applied 4 Nov 2026, old test data copied).
 - ~~Move Scan and catalogue search onto the new tables~~ (merged 4 Nov 2026; daily AI limits: lookup 20, scan 50).
 - ~~Move Library and Garden Zones onto the new tables~~ (merged 5 Nov 2026).
-- Next: move Home and Calendar (including "mark as done") onto the new tables; remove the unused `PlantProfile.jsx` (`/plant/:id`), which still writes to the old `plants` table.
-- Then: drop the old tables (`plants`, `user_plants`, `garden_zones`, `user_task_completions`) once nothing reads them.
+- ~~Move Home and Calendar (including "mark as done") onto the new tables; remove the unused `PlantProfile.jsx`~~ (merged 5 Nov 2026).
+- Retire the old tables (`plants`, `user_plants`, `garden_zones`, `user_task_completions`): `migrations/20261105_retire_old_tables.sql` copies them to the private `archive` schema, then drops them.
+- **Reminders (not running yet).** No schedule has ever been set up, and `send-monthly-reminders` has never been deployed. The spec asks for a weekly round-up plus a dry-spell alert (Open-Meteo, 5 days under 2 mm, May–Sept) instead of the old monthly reminder. Build as its own branch: scheduled with Supabase Cron (free `pg_cron`, Integrations → Cron, may need enabling), web push via VAPID (free). The function now refuses calls without a `CRON_SECRET` function secret sent as an `x-cron-secret` header; set it up when scheduling.
 - Build the admin screen: label photo, Claude draft, HTA safety lookup, approve.
