@@ -71,9 +71,15 @@ export function taskAppliesTo(task, plant) {
 export const CATEGORIES = {
   sow_indoors: 'Planting & sowing', sow_outdoors: 'Planting & sowing',
   plant_out: 'Planting & sowing', plant: 'Planting & sowing',
-  prune: 'Pruning', deadhead: 'Deadheading', feed: 'Feeding',
+  prune: 'Pruning & cutting back', cut_back: 'Pruning & cutting back', pinch_out: 'Pruning & cutting back',
+  deadhead: 'Deadheading',
+  feed: 'Feeding & mulching', mulch: 'Feeding & mulching',
+  support: 'Supporting',
+  take_cuttings: 'Propagating',
+  repot: 'Pots & containers',
   divide: 'Lifting & dividing', lift_and_store: 'Lifting & dividing',
-  protect_for_winter: 'Winter care', harvest: 'Harvesting',
+  protect_for_winter: 'Winter care', bring_indoors: 'Winter care',
+  harvest: 'Harvesting',
 }
 export const categoryFor = (taskType) => CATEGORIES[taskType] || 'Other'
 

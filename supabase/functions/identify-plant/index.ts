@@ -40,8 +40,10 @@ const Identification = z.object({
 })
 
 const CareTask = z.object({
-  task_type: z.enum(['sow_indoors', 'sow_outdoors', 'plant_out', 'plant', 'feed', 'prune',
-    'deadhead', 'divide', 'lift_and_store', 'protect_for_winter', 'harvest']),
+  task_type: z.enum(['sow_indoors', 'sow_outdoors', 'plant_out', 'plant', 'feed', 'mulch', 'prune',
+    'cut_back', 'pinch_out', 'deadhead', 'support', 'take_cuttings', 'repot', 'divide', 'lift_and_store',
+    'protect_for_winter', 'bring_indoors', 'harvest'])
+    .describe('cut_back: herbaceous plants and grasses down to the ground; prune: woody plants. support: stake or tie in. repot: pot on or top-dress containers. bring_indoors: move tender plants under cover'),
   months: z.array(z.number().int()).describe('Standard UK months, 1 = January ... 12 = December'),
   repeat: z.enum(['once', 'ongoing']).describe('once: a single job done once a year. ongoing: repeats through its months, e.g. deadheading or regular feeding'),
   task_trigger: z.enum(['none', 'after_last_frost']),
@@ -92,7 +94,7 @@ Identify the plant, then draft its care profile in the JSON format requested.
 Rules:
 - Care describes the species as a whole, not one cultivar, because varieties share their species' care in Sown's catalogue.
 - Use RHS hardiness ratings (H1a to H7) and standard UK months. Never use US zones.
-- Care tasks are real jobs (sow, plant, prune, feed, deadhead, divide, lift, protect, harvest). Never include routine watering as a task; describe watering in water_need and water_notes instead.
+- Care tasks are real jobs (sow, plant, feed, mulch, prune, cut back, pinch out, deadhead, support, take cuttings, repot, divide, lift, protect, bring indoors, harvest). Never include routine watering as a task; describe watering in water_need and water_notes instead.
 - Do not mention toxicity, poisoning, or whether the plant is safe for people or pets anywhere. Sown takes safety information only from the HTA list, checked by a person.
 - If you are not sure of a value, use the "unknown" value, 0, an empty string or an empty list. Do not guess.
 - If you cannot identify the plant, set identified to false and leave care fields empty.`

@@ -69,7 +69,7 @@ Reminders cover real jobs (sow, prune, feed, protect), not routine watering. Wat
 | Field | Values | Notes |
 | --- | --- | --- |
 | plant_id | link to profile | Variety tasks override the species task of the same type |
-| task_type | sow indoors, sow outdoors, plant out, plant, feed, prune, deadhead, divide, lift and store, protect for winter, harvest | No routine watering task |
+| task_type | sow indoors, sow outdoors, plant out, plant, feed, mulch, prune, cut back, pinch out, deadhead, support or tie in, take cuttings, repot or top-dress, divide, lift and store, protect for winter, bring indoors, harvest | No routine watering task. Prune is for woody plants; cut back is for herbaceous plants and grasses. Mulch, cut back, support, pinch out, take cuttings, repot and bring indoors added 5 Nov 2026 |
 | months | 1–12, choose any | Standard UK timing |
 | trigger | none, after last frost | Kept to one trigger at launch |
 | repeat | once, ongoing | **Once**: marked as done once a year, then returns next year. **Ongoing** (e.g. deadheading through summer): shown as a reminder only, with no "mark as done" |

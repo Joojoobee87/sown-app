@@ -18,13 +18,16 @@ const SHORT_MONTHS = [
 // ─── Categories ───────────────────────────────────────────────────────────────
 // Task types are grouped into categories in src/lib/careCalendar.js
 const CATEGORY_ICONS = {
-  'Planting & sowing':  '🌱',
-  'Pruning':            '✂️',
-  'Deadheading':        '🌸',
-  'Feeding':            '🌿',
-  'Lifting & dividing': '🪴',
-  'Winter care':        '❄️',
-  'Harvesting':         '🧺',
+  'Planting & sowing':      '🌱',
+  'Pruning & cutting back': '✂️',
+  'Deadheading':            '🌸',
+  'Feeding & mulching':     '🍂',
+  'Supporting':             '🪵',
+  'Propagating':            '🌿',
+  'Pots & containers':      '🪴',
+  'Lifting & dividing':     '🧅',
+  'Winter care':            '❄️',
+  'Harvesting':             '🧺',
 }
 const categoryIcon = (cat) => CATEGORY_ICONS[cat] ?? '🌿'
 
@@ -135,11 +138,10 @@ function TaskCard({ task, doneInMonth, onToggle, toggling }) {
             <span className="text-[10px] text-subtle flex-shrink-0">reminder</span>
           )}
         </div>
-        {task.location && (
-          <p className="text-[10px] text-fern font-medium mt-0.5 tracking-wide">
-            {task.location}
-          </p>
-        )}
+        {/* The job, then the zone: a heading can hold several jobs */}
+        <p className="text-[10px] text-fern font-medium mt-0.5 tracking-wide">
+          {[task.action, task.location].filter(Boolean).join(' · ')}
+        </p>
 
         {expanded ? (
           <p className="text-xs text-muted leading-relaxed mt-1 italic">

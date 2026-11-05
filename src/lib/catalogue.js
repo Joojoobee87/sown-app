@@ -24,6 +24,8 @@ export const LABELS = {
     sow_indoors: 'Sow indoors', sow_outdoors: 'Sow outdoors', plant_out: 'Plant out',
     plant: 'Plant', feed: 'Feed', prune: 'Prune', deadhead: 'Deadhead', divide: 'Divide',
     lift_and_store: 'Lift and store', protect_for_winter: 'Protect for winter', harvest: 'Harvest',
+    mulch: 'Mulch', cut_back: 'Cut back', support: 'Support or tie in', pinch_out: 'Pinch out',
+    take_cuttings: 'Take cuttings', repot: 'Repot or top-dress', bring_indoors: 'Bring indoors',
   },
   pet_kind: {
     dogs: 'dogs', cats: 'cats', rabbits: 'rabbits', rodents: 'rodents',
