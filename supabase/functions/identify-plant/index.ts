@@ -18,6 +18,7 @@ import Anthropic from 'npm:@anthropic-ai/sdk@1.3.0'
 import { zodOutputFormat } from 'npm:@anthropic-ai/sdk@1.3.0/helpers/zod'
 import { z } from 'npm:zod@4.6.7'
 import { createClient } from 'npm:@supabase/supabase-js@2.118.0'
+import { Identification, Care, CARE_RULES, careForDatabase } from '../_shared/plantSchema.ts'
 
 const MODEL = 'claude-haiku-5-5'
 
@@ -27,62 +28,7 @@ const corsHeaders = {
   'Access-Control-Allow-Methods': 'POST, OPTIONS',
 }
 
-// ─── What Claude returns ─────────────────────────────────────────────────────
-// No optional or nullable fields: unknown values are "", 0, "unknown" or [],
-// which the database ignores. The database also re-checks every value.
-
-const Identification = z.object({
-  identified: z.boolean().describe('false if this is not a plant, or the name cannot be read or identified'),
-  latin_name: z.string().describe("Botanical name: Genus species 'Cultivar' with the cultivar in single quotes, e.g. Lavandula angustifolia 'Hidcote'. Genus and cultivar only if there is no species, e.g. Rosa 'Peace'. Empty string if unknown."),
-  common_name: z.string().describe('Common UK name, e.g. English lavender. Empty string if none.'),
-  label_text: z.string().describe('Label photos only: the plant name exactly as printed on the label. Otherwise empty string.'),
-  confidence: z.enum(['high', 'medium', 'low']),
-})
-
-const CareTask = z.object({
-  task_type: z.enum(['sow_indoors', 'sow_outdoors', 'plant_out', 'plant', 'feed', 'mulch', 'prune',
-    'cut_back', 'pinch_out', 'deadhead', 'support', 'take_cuttings', 'repot', 'divide', 'lift_and_store',
-    'protect_for_winter', 'bring_indoors', 'harvest'])
-    .describe('cut_back: herbaceous plants and grasses down to the ground; prune: woody plants. support: stake or tie in. repot: pot on or top-dress containers. bring_indoors: move tender plants under cover'),
-  months: z.array(z.number().int()).describe('Standard UK months, 1 = January ... 12 = December'),
-  repeat: z.enum(['once', 'ongoing']).describe('once: a single job done once a year. ongoing: repeats through its months, e.g. deadheading or regular feeding'),
-  task_trigger: z.enum(['none', 'after_last_frost']),
-  applies_to: z.array(z.enum(['grown_from_seed', 'grown_from_bulb', 'bought_as_plant', 'in_pot', 'in_ground']))
-    .describe('Which plants this applies to. Empty list means all.'),
-  instructions: z.string().describe("One or two short, friendly sentences in plain UK English"),
-})
-
-const Care = z.object({
-  family: z.string().describe('Botanical family, e.g. Lamiaceae. Empty string if unknown.'),
-  plant_type: z.enum(['annual', 'biennial', 'perennial', 'shrub', 'tree', 'bulb', 'climber',
-    'grass', 'fern', 'herb', 'vegetable', 'fruit', 'unknown']),
-  rhs_hardiness: z.enum(['H1a', 'H1b', 'H1c', 'H2', 'H3', 'H4', 'H5', 'H6', 'H7', 'unknown']),
-  sun: z.array(z.enum(['full_sun', 'partial_shade', 'full_shade'])),
-  aspect: z.array(z.enum(['N', 'E', 'S', 'W'])).describe('Garden aspects it suits'),
-  exposure: z.array(z.enum(['sheltered', 'exposed'])),
-  soil_type: z.array(z.enum(['clay', 'loam', 'sand', 'chalk'])),
-  soil_moisture: z.enum(['well_drained', 'moist_but_well_drained', 'poorly_drained', 'unknown']),
-  soil_ph: z.array(z.enum(['acid', 'neutral', 'alkaline'])),
-  height_cm_min: z.number().int().describe('0 if unknown'),
-  height_cm_max: z.number().int().describe('0 if unknown'),
-  spread_cm_min: z.number().int().describe('0 if unknown'),
-  spread_cm_max: z.number().int().describe('0 if unknown'),
-  years_to_full_size_min: z.number().int().describe('0 if unknown'),
-  years_to_full_size_max: z.number().int().describe('0 if unknown'),
-  suits_containers: z.enum(['yes', 'no', 'unknown']),
-  difficulty: z.enum(['beginner', 'some_experience', 'expert', 'unknown']),
-  water_need: z.enum(['low', 'medium', 'high', 'unknown']).describe('Once established, in a typical UK garden'),
-  water_notes: z.string().describe('One short sentence, e.g. "Water well in its first summer, then only in long dry spells."'),
-  flowering_months: z.array(z.number().int()).describe('UK months, 1-12. Empty if it is not grown for flowers.'),
-  summary: z.string().describe('One or two sentences for the top of the plant page'),
-  care_planting: z.string().describe('Short paragraph: planting'),
-  care_ongoing: z.string().describe('Short paragraph: ongoing care'),
-  care_through_year: z.string().describe('Short paragraph: through the year'),
-  common_problems: z.array(z.object({ problem: z.string(), what_to_do: z.string() })).describe('Up to 5 pests or diseases'),
-  beginner_tips: z.array(z.string()).describe('Up to 4 short tips'),
-  good_for_pollinators: z.enum(['yes', 'no', 'unknown']),
-  care_tasks: z.array(CareTask).describe('Real jobs only: no routine watering. Up to 8.'),
-})
+// What Claude returns: see ../_shared/plantSchema.ts
 
 const PlantAnswer = z.object({ identification: Identification, care: Care })
 type PlantAnswer = z.infer<typeof PlantAnswer>
@@ -93,10 +39,7 @@ Identify the plant, then draft its care profile in the JSON format requested.
 
 Rules:
 - Care describes the species as a whole, not one cultivar, because varieties share their species' care in Sown's catalogue.
-- Use RHS hardiness ratings (H1a to H7) and standard UK months. Never use US zones.
-- Care tasks are real jobs (sow, plant, feed, mulch, prune, cut back, pinch out, deadhead, support, take cuttings, repot, divide, lift, protect, bring indoors, harvest). Never include routine watering as a task; describe watering in water_need and water_notes instead.
-- Do not mention toxicity, poisoning, or whether the plant is safe for people or pets anywhere. Sown takes safety information only from the HTA list, checked by a person.
-- If you are not sure of a value, use the "unknown" value, 0, an empty string or an empty list. Do not guess.
+${CARE_RULES}
 - If you cannot identify the plant, set identified to false and leave care fields empty.`
 
 function prompt(mode: 'label' | 'identify' | 'name', name?: string): string {
@@ -117,18 +60,6 @@ function json(body: unknown, status = 200) {
     status,
     headers: { ...corsHeaders, 'Content-Type': 'application/json' },
   })
-}
-
-// Turn Claude's "unknown" markers into what fill_draft_plant_profile expects
-function careForDatabase(care: PlantAnswer['care']) {
-  const { care_tasks: _tasks, suits_containers, good_for_pollinators, ...rest } = care
-  return {
-    ...rest,
-    common_names: [] as string[],   // set from identification below
-    suits_containers: suits_containers === 'yes' ? true : suits_containers === 'no' ? false : null,
-    // 'unknown' is a real stored value; leave the field empty so a later scan can fill it
-    good_for_pollinators: good_for_pollinators === 'unknown' ? null : good_for_pollinators,
-  }
 }
 
 // ─── Handler ─────────────────────────────────────────────────────────────────

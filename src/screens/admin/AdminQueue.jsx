@@ -58,9 +58,15 @@ export default function AdminQueue() {
     <div className="flex flex-col min-h-screen bg-parchment pb-20">
       <TopBar />
       <main className="flex-1 p-4 flex flex-col gap-3">
-        <div>
-          <h1 className="font-serif text-dark text-xl">Plant catalogue</h1>
-          <p className="text-xs text-subtle mt-0.5">Admin only. Check drafts, add HTA safety, then verify.</p>
+        <div className="flex items-start justify-between gap-3">
+          <div>
+            <h1 className="font-serif text-dark text-xl">Plant catalogue</h1>
+            <p className="text-xs text-subtle mt-0.5">Admin only. Check drafts, add HTA safety, then verify.</p>
+          </div>
+          <button onClick={() => navigate('/admin/new')}
+            className="bg-fern text-sage text-xs font-medium px-3 py-2 rounded-xl flex-shrink-0">
+            + Add from a label
+          </button>
         </div>
 
         <div className="flex gap-2">

@@ -7,7 +7,7 @@
 // set on the species. Fields changed here are marked 'jo' in field_sources.
 
 import { useCallback, useEffect, useState } from 'react'
-import { Link, useNavigate, useParams } from 'react-router-dom'
+import { Link, useLocation, useNavigate, useParams } from 'react-router-dom'
 import { supabase } from '../../lib/supabase'
 import TopBar from '../../components/TopBar'
 import { LABELS, label, formatMonths, formatRange, botanicalName, safetyWording } from '../../lib/catalogue'
@@ -51,6 +51,7 @@ const GROUPS = [
     { key: 'water_need', label: 'Water need', type: 'choice', options: opts('water_need') },
     { key: 'water_notes', label: 'Water notes', type: 'textarea', rows: 2 },
     { key: 'flowering_months', label: 'Flowering months', type: 'months' },
+    { key: 'flower_colours', label: 'Flower colours', type: 'list', hint: 'One per line, e.g. deep purple. Usually a variety fact.' },
   ] },
   { title: 'Content', fields: [
     { key: 'summary', label: 'Summary', type: 'textarea', rows: 2, hint: 'One or two sentences for the top of the plant page.' },
@@ -198,6 +199,7 @@ function TaskEditor({ task, plantId, onChanged, onCancelNew }) {
 export default function AdminPlant() {
   const { id } = useParams()
   const navigate = useNavigate()
+  const fromLabel = useLocation().state?.fromLabel   // set by "Add from a label"
   const [profile, setProfile] = useState(null)
   const [parent, setParent] = useState(null)
   const [varieties, setVarieties] = useState([])
@@ -206,6 +208,7 @@ export default function AdminPlant() {
   const [parentTasks, setParentTasks] = useState([])
   const [newTask, setNewTask] = useState(null)
   const [labelPhotos, setLabelPhotos] = useState([])
+  const [plantPhotos, setPlantPhotos] = useState([])
   const [preview, setPreview] = useState(null)
   const [saving, setSaving] = useState(false)
   const [message, setMessage] = useState(null)   // { type: 'error' | 'ok', text }
@@ -231,7 +234,12 @@ export default function AdminPlant() {
       signed = photos.map((ph, i) => ({ ...ph, url: urls?.[i]?.signedUrl }))
     }
     setProfile(p); setParent(par); setVarieties(vars || []); setTasks(own || []); setParentTasks(pTasks || [])
-    setLabelPhotos(signed); setPartsDraft((par && p.safety_status == null ? par : p).harmful_parts || '')
+    setLabelPhotos(signed)
+    if (p.photo_paths?.length) {
+      const { data: urls } = await supabase.storage.from('catalogue-photos').createSignedUrls(p.photo_paths, 3600)
+      setPlantPhotos(p.photo_paths.map((path, i) => ({ path, url: urls?.[i]?.signedUrl })))
+    } else setPlantPhotos([])
+    setPartsDraft((par && p.safety_status == null ? par : p).harmful_parts || '')
     const f = { slug: p.slug }
     for (const field of ALL_FIELDS) for (const col of columnsOf(field)) f[col] = p[col] ?? (field.type === 'range' ? '' : null)
     setForm(f)
@@ -374,6 +382,24 @@ export default function AdminPlant() {
           </div>
         )}
 
+        {fromLabel && (
+          <div className="bg-leaf border border-fern/30 rounded-xl p-3 text-sm text-dark flex flex-col gap-1" data-testid="from-label">
+            <p className="font-medium">Drafted from the label ({fromLabel.read_as}).</p>
+            {fromLabel.label?.variety_fields?.length > 0 && (
+              <p className="text-xs">On this variety from the label: {fromLabel.label.variety_fields.join(', ')}.</p>
+            )}
+            {fromLabel.label?.species_fields?.length > 0 && (
+              <p className="text-xs">On the species from the label: {fromLabel.label.species_fields.join(', ')}.</p>
+            )}
+            {fromLabel.filled?.filled?.length > 0 && (
+              <p className="text-xs">Claude filled {fromLabel.filled.filled.length} empty species field{fromLabel.filled.filled.length === 1 ? '' : 's'}
+                {fromLabel.filled.tasks_added ? ` and ${fromLabel.filled.tasks_added} task${fromLabel.filled.tasks_added === 1 ? '' : 's'}` : ''}.</p>
+            )}
+            {fromLabel.status === 'verified' && <p className="text-xs">This plant was already verified, so its details weren't changed.</p>}
+            <p className="text-xs text-subtle">Check the fields marked Label and Claude, then do the HTA lookup.</p>
+          </div>
+        )}
+
         {/* Label photos */}
         <Section title="Label photos">
           {labelPhotos.length === 0
@@ -382,6 +408,18 @@ export default function AdminPlant() {
                 {labelPhotos.map(ph => (
                   <a key={ph.id} href={ph.url} target="_blank" rel="noreferrer">
                     <img src={ph.url} alt="Label" className="w-full h-32 object-cover rounded-lg border border-moss/40" />
+                  </a>
+                ))}
+              </div>}
+        </Section>
+
+        <Section title="Plant photos">
+          {plantPhotos.length === 0
+            ? <p className="text-sm text-subtle">No photos yet. Add your own when you add from a label.</p>
+            : <div className="grid grid-cols-2 gap-2">
+                {plantPhotos.map(ph => (
+                  <a key={ph.path} href={ph.url} target="_blank" rel="noreferrer">
+                    <img src={ph.url} alt="Plant" className="w-full h-32 object-cover rounded-lg border border-moss/40" />
                   </a>
                 ))}
               </div>}

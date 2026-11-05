@@ -6,6 +6,7 @@ import ProtectedRoute from './components/ProtectedRoute'
 import AdminRoute from './components/AdminRoute'
 import AdminQueue from './screens/admin/AdminQueue'
 import AdminPlant from './screens/admin/AdminPlant'
+import AdminAddLabel from './screens/admin/AdminAddLabel'
 import Auth from './screens/Auth'
 import Home from './screens/Home'
 import Scan from './screens/Scan'
@@ -75,6 +76,9 @@ export default function App() {
             }/>
             <Route path="/admin" element={
               <AdminRoute><AdminQueue /></AdminRoute>
+            }/>
+            <Route path="/admin/new" element={
+              <AdminRoute><AdminAddLabel /></AdminRoute>
             }/>
             <Route path="/admin/plant/:id" element={
               <AdminRoute><AdminPlant /></AdminRoute>

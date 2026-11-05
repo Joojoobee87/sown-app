@@ -58,7 +58,8 @@ Profiles are stored as a **species parent** with slim **variety children**. A va
 | difficulty | beginner, some experience, expert | |
 | water_need | low, medium, high | Shown on the care label; drives the dry-spell alert |
 | water_notes | short text | e.g. "Water well in its first summer, then only in long dry spells" |
-| flowering_months | 1–12, choose any | Standard UK timing |
+| flowering_months | 1–12, choose any | Standard UK timing. Usually a variety fact |
+| flower_colours | list | e.g. "deep purple". Usually a variety fact (added 5 Nov 2026) |
 
 ## Care tasks and reminders
 
@@ -143,7 +144,7 @@ These fields are reserved now and left empty until the product range is develope
 | Field | Values | Notes |
 | --- | --- | --- |
 | status | draft, verified | Shown to users as "Sown guide (unverified)" or "Verified by Sown". Users see every verified profile, plus drafts linked to their own plants (e.g. one created by their scan). A variety can't be verified before its species |
-| field_sources | per field: Claude, label, API, Jo | Shows where each fact came from |
+| field_sources | per field: Claude, label, API, Jo | Shows where each fact came from. A label fact replaces an empty field or a Claude guess, never one Jo set. When a label names a cultivar, its own facts (height, spread, flowering months, flower colours) go on the variety and general facts (sun, aspect, soil, hardiness, exposure, water need, containers, plant type) on the species while it's a draft |
 | verified_by, verified_at | person, date | |
 | label_photo_refs | links | Jo's label photos used to cross-check; kept private. Stored in their own admin-only table so users who can read a profile can't see them |
 | last_reviewed | date | |

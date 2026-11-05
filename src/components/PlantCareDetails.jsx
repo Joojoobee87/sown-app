@@ -43,6 +43,7 @@ export function profileFacts(profile) {
     { label: 'Aspect',    value: profile.aspect?.length ? profile.aspect.join(', ') : null },
     { label: 'Height',    value: formatRange(profile.height_cm_min, profile.height_cm_max) },
     { label: 'Flowers',   value: formatMonths(profile.flowering_months) },
+    { label: 'Flower colour', value: profile.flower_colours?.length ? profile.flower_colours.join(', ') : null },
     { label: 'Hardiness', value: profile.rhs_hardiness ? `RHS ${profile.rhs_hardiness}` : null },
   ]
 }
