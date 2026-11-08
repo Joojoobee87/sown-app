@@ -37,22 +37,32 @@ const corsHeaders = {
   'Access-Control-Allow-Methods': 'POST, OPTIONS',
 }
 
-const LabelAnswer = z.object({
+// Two calls, each with a small enough output format for structured output
+// (one combined format compiles to a grammar over the API's size limit):
+//   1. read the label (photos): identification + facts printed on it
+//   2. draft care (text only): Claude's own care for the species, skipped
+//      when the species already has care or is verified
+const LabelRead = z.object({
   identification: Identification,
   label_facts: LabelFacts.describe('ONLY facts printed on the label itself. Anything the label does not state: unknown, 0 or empty.'),
-  care: Care.describe('Your own care draft for the species, in your own words.'),
 })
+const CareDraft = z.object({ care: Care })
 
-const SYSTEM = `You are the plant expert for Sown, a UK gardening app, helping Sown's editor build a verified plant catalogue from photos of nursery plant labels. Write for UK gardens and the UK climate, in plain, friendly UK English.
+const READ_SYSTEM = `You read nursery plant labels for Sown, a UK gardening app, to help its editor build a verified plant catalogue.
 
 From the photos:
 1. identification: the plant named on the label. Use the label's printed name; put it exactly as printed in label_text.
 2. label_facts: only the facts the label itself states (height, spread, sun, hardiness, flowering time, flower colour and so on), converted to the requested codes. If the label doesn't state something, leave it unknown, 0 or empty, even if you know the answer.
-3. care: your own care draft for the species as a whole, from your knowledge, in your own words. Never copy or closely paraphrase the label's wording; the label is a nursery's copyright text.
+
+Use RHS hardiness ratings (H1a to H7) and UK months. If you cannot read a plant name, set identified to false.`
+
+const CARE_SYSTEM = `You are the plant expert for Sown, a UK gardening app. Write for UK gardens and the UK climate, in plain, friendly UK English.
+
+Draft the care profile for the plant named, in the JSON format requested, from your own knowledge and in your own words.
 
 Rules:
-${CARE_RULES}
-- If you cannot read a plant name, set identified to false.`
+- Care describes the species as a whole, not one cultivar, because varieties share their species' care in Sown's catalogue.
+${CARE_RULES}`
 
 type Photo = { path: string, side?: 'front' | 'back' }
 
@@ -129,7 +139,7 @@ Deno.serve(async (req) => {
       content.push({ type: 'text', text: `Photo of the plant itself (${i + 1}):` })
       content.push({ type: 'image', source: { type: 'base64', media_type: img.type, data: img.data } })
     })
-    content.push({ type: 'text', text: 'Identify the plant on this label and return the label facts and your care draft.' })
+    content.push({ type: 'text', text: 'Identify the plant on this label and return the facts printed on it.' })
 
     const anthropic = new Anthropic({ apiKey: Deno.env.get('ANTHROPIC_API_KEY') })
     const response = await anthropic.beta.messages.parse({
@@ -138,8 +148,8 @@ Deno.serve(async (req) => {
       betas: ['server-side-fallback-2026-07-01'],
       fallbacks: 'default',            // if Opus declines, Anthropic's recommended model retries
       thinking: { type: 'adaptive' },
-      output_config: { effort: 'high', format: betaZodOutputFormat(LabelAnswer) },
-      system: SYSTEM,
+      output_config: { effort: 'high', format: betaZodOutputFormat(LabelRead) },
+      system: READ_SYSTEM,
       messages: [{ role: 'user', content }],
     })
 
@@ -168,17 +178,46 @@ Deno.serve(async (req) => {
       return json({ error: `Claude read "${id.latin_name}", but it couldn't be added to the catalogue.` }, 422)
     }
 
-    // ── 4. Label facts, then 5. Claude's care for what's still empty ──
+    // ── 4. Label facts ──
     const { data: labelResult, error: labelErr } = await admin.rpc('apply_label_facts', {
       p_id: profile.id, p_data: labelFactsForDatabase(answer.label_facts),
     })
     if (labelErr) throw labelErr
-    const careData = careForDatabase(answer.care)
-    if (id.common_name.trim()) careData.common_names = [id.common_name.trim()]
-    const { data: fillResult, error: fillErr } = await admin.rpc('fill_draft_plant_profile', {
-      p_id: profile.id, p_data: careData, p_tasks: answer.care.care_tasks,
-    })
-    if (fillErr) throw fillErr
+
+    // ── 5. Claude's care for what's still empty, if the species needs it ──
+    const speciesId = profile.parent_id ?? profile.id
+    const [{ data: species }, { count: taskCount }] = await Promise.all([
+      admin.from('plant_profiles').select('status, genus, species, summary, care_ongoing').eq('id', speciesId).single(),
+      admin.from('plant_care_tasks').select('id', { count: 'exact', head: true }).eq('plant_id', speciesId),
+    ])
+    let fillResult: unknown = { filled: [], tasks_added: 0, skipped: 'species already has care' }
+    const needsCare = species && species.status === 'draft' && (!species.summary || !species.care_ongoing || !taskCount)
+    if (needsCare) {
+      const speciesName = [species.genus, species.species].filter(Boolean).join(' ')
+      const careResponse = await anthropic.beta.messages.parse({
+        model: MODEL,
+        max_tokens: 16000,
+        betas: ['server-side-fallback-2026-07-01'],
+        fallbacks: 'default',
+        thinking: { type: 'adaptive' },
+        output_config: { effort: 'medium', format: betaZodOutputFormat(CareDraft) },
+        system: CARE_SYSTEM,
+        messages: [{ role: 'user', content: `Draft the care profile for ${speciesName}${id.common_name ? ` (${id.common_name})` : ''}.` }],
+      })
+      if (careResponse.stop_reason !== 'refusal' && careResponse.stop_reason !== 'max_tokens' && careResponse.parsed_output) {
+        const care = careResponse.parsed_output.care
+        const careData = careForDatabase(care)
+        if (id.common_name.trim()) careData.common_names = [id.common_name.trim()]
+        const { data, error: fillErr } = await admin.rpc('fill_draft_plant_profile', {
+          p_id: profile.id, p_data: careData, p_tasks: care.care_tasks,
+        })
+        if (fillErr) throw fillErr
+        fillResult = data
+      } else {
+        console.error('Care draft not usable', careResponse.stop_reason)
+        fillResult = { filled: [], tasks_added: 0, skipped: 'Claude could not draft care this time' }
+      }
+    }
 
     // ── 6. File the photos under the profile's slug ──
     const slug = profile.slug as string
@@ -240,7 +279,8 @@ Deno.serve(async (req) => {
     console.error(error)
     await cleanUp()
     if (error instanceof Anthropic.RateLimitError) return json({ error: 'Claude is busy. Try again in a minute.' }, 503)
-    if (error instanceof Anthropic.APIError) return json({ error: 'Claude is unavailable right now. Try again later.' }, 502)
+    // Admins only, so show Claude's own message to help diagnose problems
+    if (error instanceof Anthropic.APIError) return json({ error: `Claude error (${error.status}): ${error.message}` }, 502)
     return json({ error: 'Something went wrong. Please try again.' }, 500)
   }
 })

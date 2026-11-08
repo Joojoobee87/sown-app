@@ -395,6 +395,7 @@ export default function AdminPlant() {
               <p className="text-xs">Claude filled {fromLabel.filled.filled.length} empty species field{fromLabel.filled.filled.length === 1 ? '' : 's'}
                 {fromLabel.filled.tasks_added ? ` and ${fromLabel.filled.tasks_added} task${fromLabel.filled.tasks_added === 1 ? '' : 's'}` : ''}.</p>
             )}
+            {fromLabel.filled?.skipped && <p className="text-xs">Care not redrafted: {fromLabel.filled.skipped}.</p>}
             {fromLabel.status === 'verified' && <p className="text-xs">This plant was already verified, so its details weren't changed.</p>}
             <p className="text-xs text-subtle">Check the fields marked Label and Claude, then do the HTA lookup.</p>
           </div>
